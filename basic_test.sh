@@ -17,6 +17,7 @@ function ctrl_c() {
 }
 
 
+
 #Check if the kernel version is correct
 kernel_version=$(uname -r)
 echo $kernel_version
@@ -26,11 +27,11 @@ if [ "$kernel_version" != "6.0.0-lake" ]; then
 fi
 
 #Check if the nvidia driver is installed
-nvidia_check=$(nvidia-smi | grep 'Driver Version')
-if [ "$nvidia_check" == "" ]; then
-  echo "Error : Driver not found"
-  exit
-fi
+# nvidia_check=$(nvidia-smi | grep 'Driver Version')
+# if [ "$nvidia_check" == "" ]; then
+#   echo "Error : Driver not found"
+#   exit
+# fi
 
 #Compile kapi
 make clean -C src/kapi/uspace/
@@ -40,6 +41,7 @@ if [ $exit_code != 0 ]; then
     echo "Error: Make failed exiting..."
     exit
 fi
+
 
 make clean -C src/kapi/kshm/
 make -C src/kapi/kshm/
@@ -57,6 +59,8 @@ if [ $exit_code != 0 ]; then
     exit
 fi
 
+
+
 # #Compile hello_driver
 pushd src/hello_driver
 make -f Makefile_cubin
@@ -65,6 +69,7 @@ if [ $exit_code != 0 ]; then
     echo "Error: Make failed exiting..."
     exit
 fi
+
 
 make
 exit_code=$?
@@ -110,36 +115,36 @@ echo " > if they are and are in use by one more modules, ** you need to restart 
 echo " > Make sure you added cma=128M@0-4G to your kernel parameters."
 echo " > **************************************************"
 
-sleep 5
+# sleep 5
 
-pushd uspace
-sudo taskset 0x15 ./lake_uspace &
-popd 
-echo " > Done. Waiting for things to settle.." 
-sleep 5
+# pushd uspace
+# sudo taskset 0x15 ./lake_uspace &
+# popd 
+# echo " > Done. Waiting for things to settle.." 
+# sleep 5
 
-echo " > Checking if the user space daemon is running..."
-load_status=$(ps -ef | grep lake_uspace | wc -l)
-if [ $load_status -lt 2 ]; then
-    echo "Error: user space app failed..."
-    exit
-fi
-echo " > Looks like it is."
+# echo " > Checking if the user space daemon is running..."
+# load_status=$(ps -ef | grep lake_uspace | wc -l)
+# if [ $load_status -lt 2 ]; then
+#     echo "Error: user space app failed..."
+#     exit
+# fi
+# echo " > Looks like it is."
 
-#back to root
-popd 
+# #back to root
+# popd 
 
-#Run Hello world
-pushd src/hello_driver
-echo " > **************************************************"
-echo " > **************************************************"
-echo " > Running hello world kernel module that uses CUDA."
-./run.sh
-echo " > Success! run dmesg if you want to see the output"
-echo " > **************************************************"
-echo " > **************************************************"
-#back to root
-popd
+# #Run Hello world
+# pushd src/hello_driver
+# echo " > **************************************************"
+# echo " > **************************************************"
+# echo " > Running hello world kernel module that uses CUDA."
+# ./run.sh
+# echo " > Success! run dmesg if you want to see the output"
+# echo " > **************************************************"
+# echo " > **************************************************"
+# #back to root
+# popd
 
 #Unload
 echo " > Unloading everything..."
