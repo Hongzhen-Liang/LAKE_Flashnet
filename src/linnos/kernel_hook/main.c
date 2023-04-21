@@ -107,7 +107,7 @@ long *weights[][8] = {
 static const char *devices[] = {
 	"/dev/nvme0n1",
 	"/dev/nvme1n1",
-	"/dev/nvme2n1",
+	// "/dev/nvme2n1",
     //"/dev/vdb",
 	//"/dev/vdc",
 	0
