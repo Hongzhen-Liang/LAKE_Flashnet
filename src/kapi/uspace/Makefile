@@ -40,7 +40,7 @@ all: lake_uspace
 
 lake_uspace: *.c *.cpp kleio/py_wrapper.c
 	echo compiling $^
-	# nvcc $(CFLAGS) $(PY_COMPILE_FLAGS) $^ -o $@ $(CFLAGS) $(LIBS)  $(PY_LINKER_FLAGS)
+	nvcc $(CFLAGS) $(PY_COMPILE_FLAGS) $^ -o $@ $(CFLAGS) $(LIBS)  $(PY_LINKER_FLAGS)
 
 clean:
 	rm -f lake_uspace

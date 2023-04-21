@@ -15,4 +15,4 @@ clean:
 	make -C /lib/modules/$(shell uname -r)/build M=$(shell pwd) clean
 
 uspace: uspace.c
-	# nvcc uspace.c -lcuda -o uspace
+	nvcc uspace.c -lcuda -o uspace
