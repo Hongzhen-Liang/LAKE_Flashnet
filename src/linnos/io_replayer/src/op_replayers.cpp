@@ -68,6 +68,7 @@ void baseline_execute_op(TraceOp &trace_op, Trace *trace, uint32_t device, char*
 void failover_execute_op(TraceOp &trace_op, Trace *trace, uint32_t device, char* buf) {
     int ret, i;
     int *fds = trace->get_fds();
+    int device_num = 2;
     bool success = false;
     //read
     if(trace_op.op == 0) {
@@ -76,7 +77,7 @@ void failover_execute_op(TraceOp &trace_op, Trace *trace, uint32_t device, char*
         if (ret < 0) {
             trace->add_fail(device);
             for (i = 0 ; i < MAX_FAIL ; i++) {
-                device = ++device % 3;
+                device = ++device % device_num;
                 trace->add_io_count(device);
                 ret = pread(fds[device], buf, trace_op.size, trace_op.offset);
                 if (ret > 0) {

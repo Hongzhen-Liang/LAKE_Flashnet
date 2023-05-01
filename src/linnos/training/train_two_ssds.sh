@@ -11,7 +11,7 @@ fi
 
 echo $1, $2, $3
 
-sudo ../io_replayer/replayer baseline mlData/TrainTraceOutput 2 /dev/nvme0n1-/dev/nvme1n1 $1 $2
+sudo ../io_replayer/replayer baseline mlData/TrainTraceOutput 2 /dev/sdb-/dev/sda2 $1 $2
 
 pip3 install numpy
 pip3 install --upgrade pip
@@ -42,5 +42,5 @@ cp mldrive1.csv.* drive1weights
 
 cd ..
 mkdir -p weights_header_2ssds
-python3 mlHeaderGen.py Trace nvme0n1 mlData/drive0weights weights_header_2ssds
-python3 mlHeaderGen.py Trace nvme1n1 mlData/drive1weights weights_header_2ssds
+python3 mlHeaderGen.py Trace sdb mlData/drive0weights weights_header_2ssds
+python3 mlHeaderGen.py Trace sda2 mlData/drive1weights weights_header_2ssds
