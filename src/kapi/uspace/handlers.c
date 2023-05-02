@@ -43,6 +43,7 @@ static int lake_handler_cuCtxCreate(void* buf, struct lake_cmd_ret* cmd_ret) {
  *********************/
 static int lake_handler_cuModuleLoad(void* buf, struct lake_cmd_ret* cmd_ret) {
         struct lake_cmd_cuModuleLoad *cmd = (struct lake_cmd_cuModuleLoad *) buf;
+    printf("lake_handler_cuModuleLoad %s\n", cmd->fname);
     cmd_ret->res = cuModuleLoad(&cmd_ret->module, cmd->fname);
     return 0;
 }
