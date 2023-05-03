@@ -209,10 +209,33 @@ void multi_gpu_predict_batch_plus_2(char *__feat_vec, int n_vecs, long **weights
 			"cuLaunchKernel", __LINE__);
 }
 
+#define CPU_Inference_FILE "/root/CPU_Inference_FILE"
+#define GPU_Inference_FILE "/root/GPU_Inference_FILE"
+char buf[128];
+void print_inference_time(char* FileName,s64 inference_diff){
+	char buf[128];
+	struct file *file = NULL;
+	if(file == NULL)
+        file = filp_open(FileName, O_CREAT | O_WRONLY | O_APPEND | O_LARGEFILE, 0666);
+    if(IS_ERR(file)){
+        printk("error occured while opening file %s, exiting...\n", FileName);
+    }
+	sprintf(buf, "%lld\n", inference_diff);
+	ssize_t res = kernel_write(file, (char *)buf, strlen(buf), &file->f_pos);
+	if(file != NULL)
+        filp_close(file, NULL);
+}
+
+
 void do_gpu_inference(int n_vecs, long **weights, int dev, int batch_id) {
+	pr_warn("GPU inference, n_vecs is %d, batch_id is %d\n",n_vecs,batch_id);
+	s64 inference_start=ktime_get_ns();
 	multi_copy_inputs_to_gpu(n_vecs, dev, batch_id);
 	multi_gpu_predict_batch(0, n_vecs, weights, dev, batch_id);
 	multi_copy_results_from_gpu(n_vecs, dev, batch_id);
+	s64 inference_diff = ktime_get_ns()-inference_start;
+	// if(n_vecs==max_batch_size+1)
+	// 	print_inference_time(GPU_Inference_FILE,inference_diff);
 }
 
 void do_gpu_inference_plus_one(int n_vecs, long **weights, int dev, int batch_id) {
@@ -285,17 +308,19 @@ enter_again:
 	skip = cpu_times[model_size] < ia_avg * i;
 	skip |= (window_size_ns <= WINDOW_THRESHOLD);
 	//skip = true;
+	skip = false; // Hongzhen: avoid cpu
 	if(skip) {
+		// pr_warn("skip\n");
 		spin_unlock_irqrestore(&batch_entry[this_dev], irqflags);
 		n_skipped++;
 		my_prediction = cpu_prediction_model(feat_vec, n_vecs, weights);
 		
 		return no_reject ? false : my_prediction;
 	}
-
+	// pr_warn("not skip\n");
 	//we can. would we close this batch?
 	dif = my_arrival - first_arrival[this_dev][my_batch];
-	is_last = dif >= window_size_ns;
+	is_last = dif >= window_size_ns; 
 	is_last = is_last && my_id; //cant be first
 	if (is_last || my_id >= max_batch_size) {
 		//pr_warn("i am last of batch %d  time dif? %d  [%lld]!\n", my_batch, is_last, dif);
@@ -580,6 +605,7 @@ bool fake_prediction_model(char *feat_vec, int n_vecs, long **weights) {
 #pragma GCC push_options
 #pragma GCC optimize (DEADFLAG)
 bool cpu_prediction_model(char *feat_vec, int n_vecs, long **weights) {
+	// pr_warn("CPU inference\n");
 	long input_vec_i[LEN_INPUT], mid_res_i[LEN_LAYER_0], final_res_i[LEN_LAYER_1];
 	long *weight_0_T_ent, * bias_0_ent, *weight_1_T_ent, * bias_1_ent; 
 	int i, j, k, offset;
