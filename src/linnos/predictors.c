@@ -210,7 +210,7 @@ void multi_gpu_predict_batch_plus_2(char *__feat_vec, int n_vecs, long **weights
 }
 
 #define CPU_Inference_FILE "/root/CPU_Inference_FILE"
-#define GPU_Inference_FILE "/root/GPU_Inference_FILE"
+#define GPU_Inference_FILE "/root/GPU_Inference_FILE_64"
 char buf[128];
 void print_inference_time(char* FileName,s64 inference_diff){
 	char buf[128];
@@ -228,14 +228,15 @@ void print_inference_time(char* FileName,s64 inference_diff){
 
 
 void do_gpu_inference(int n_vecs, long **weights, int dev, int batch_id) {
-	pr_warn("GPU inference, n_vecs is %d, batch_id is %d\n",n_vecs,batch_id);
+	
 	s64 inference_start=ktime_get_ns();
 	multi_copy_inputs_to_gpu(n_vecs, dev, batch_id);
 	multi_gpu_predict_batch(0, n_vecs, weights, dev, batch_id);
 	multi_copy_results_from_gpu(n_vecs, dev, batch_id);
-	s64 inference_diff = ktime_get_ns()-inference_start;
-	// if(n_vecs==max_batch_size+1)
-	// 	print_inference_time(GPU_Inference_FILE,inference_diff);
+	s64 inference_latency = ktime_get_ns()-inference_start;
+	pr_warn("GPU inference, n_vecs is %d, inference_latency is %lld\n",n_vecs,inference_latency);
+	if(n_vecs==max_batch_size+1)
+		print_inference_time(GPU_Inference_FILE,inference_latency);
 }
 
 void do_gpu_inference_plus_one(int n_vecs, long **weights, int dev, int batch_id) {
@@ -377,7 +378,7 @@ last_req_close:
 		//pr_warn(">> closing batch %d size %d\n", my_batch, waiting[this_dev][my_batch]);
 
 		//lonely request :(
-		if(waiting[this_dev][my_batch] <= 1) {
+		if(waiting[this_dev][my_batch] <= -1) {
 			use_cpu = true;
 			goto reset_this_batch;
 		}
@@ -399,6 +400,7 @@ last_req_close:
 			else do_gpu_inference_plus_two(waiting[this_dev][my_batch], 
 				gpu_weights[this_dev].weights, this_dev, my_batch); 
 			my_prediction = gpu_get_prediction(this_dev, my_batch, my_id);
+			
 		}
 
 		//let everyone go now

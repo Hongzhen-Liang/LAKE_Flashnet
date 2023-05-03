@@ -207,8 +207,8 @@ static int gpu_attach(void) {
 		window_size_hist[i] = 0;
 	if(model_size==0) {
 	 	cpu_gpu_threshold = 0;
-		max_batch_size = 1023;
-	 	window_size_ns = 5000*_us; 
+		max_batch_size = 63;
+	 	window_size_ns = 100000*_us; 
 		no_reject = false;
 	} else if (model_size == 1) {
 		window_size_ns = 40*_us;
