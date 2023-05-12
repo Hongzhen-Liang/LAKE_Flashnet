@@ -10,8 +10,8 @@ if [ $# -ne 3 ]
 fi
 
 echo $1, $2, $3
-
-sudo ../io_replayer/replayer baseline mlData/TrainTraceOutput 2 /dev/sdb-/dev/sda2 $1 $2
+mkdir -p mlData
+sudo ../io_replayer/replayer baseline mlData/TrainTraceOutput 2 /dev/sda-/dev/sdc $1 $2
 
 pip3 install numpy
 pip3 install --upgrade pip
@@ -20,7 +20,7 @@ pip3 install keras
 pip3 install pandas
 pip3 install scikit-learn
 
-mkdir -p mlData
+
 for i in 0 1
 do
    python3 traceParser.py direct 3 4 \
@@ -42,5 +42,5 @@ cp mldrive1.csv.* drive1weights
 
 cd ..
 mkdir -p weights_header_2ssds
-python3 mlHeaderGen.py Trace sdb mlData/drive0weights weights_header_2ssds
-python3 mlHeaderGen.py Trace sda2 mlData/drive1weights weights_header_2ssds
+python3 mlHeaderGen.py Trace sda mlData/drive0weights weights_header_2ssds
+python3 mlHeaderGen.py Trace sdc mlData/drive1weights weights_header_2ssds

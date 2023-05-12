@@ -34,6 +34,7 @@
 #include <sys/ioctl.h>
 #include <pthread.h>
 
+
 #include "replayer.hpp"
 #include "op_replayers.hpp"
 
@@ -109,6 +110,7 @@ int main (int argc, char **argv)
     uint64_t elaps =  std::chrono::duration_cast<std::chrono::seconds>(end - begin).count();
 
     printf("Trace took %lu seconds to finish.\n", elaps);
+    printf("Finish time: %lu ns.\n", get_ns_ts()-now);
 
     trace.print_stats();
 
