@@ -91,7 +91,8 @@ sleep 1
 
 echo " > Loading shared memory module"
 pushd kshm
-sudo insmod lake_shm.ko shm_size=32
+# sudo insmod lake_shm.ko shm_size=32
+sudo insmod lake_shm.ko shm_size=4
 popd 
 echo " > Done."
 

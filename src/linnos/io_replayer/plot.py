@@ -54,7 +54,7 @@ LB = []
 LCPU = []
 LGPU = []
  
-while lineBase:
+while (lineBase and lineCPU and lineGPU):
     LB.append(int(lineBase.split(",")[1]))
     LCPU.append(int(lineCPU.split(",")[1]))
     LGPU.append(int(lineGPU.split(",")[1]))

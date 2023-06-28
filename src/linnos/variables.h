@@ -28,7 +28,8 @@
 #endif
 
 #define NUMBER_DEVICES 3
-#define MAX_DEV_BATCHES 16
+// #define MAX_DEV_BATCHES 16
+#define MAX_DEV_BATCHES 2
 #define _us 1000
 #define WINDOW_THRESHOLD 5*_us
 struct GPU_weights {
