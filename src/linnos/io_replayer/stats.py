@@ -81,6 +81,8 @@ if __name__ == '__main__':
     #print (f"Min/Max read latency: {min(read_latencies):.2f} us / {max(read_latencies):.2f} us")
     #print (f"Average read size: {statistics.mean(read_sizes):.2f} KB")
     #print (f"Read latency p85: {np.percentile(np_read_latencies, 85)} us")
+    print (f"Read latency p60: {np.percentile(np_read_latencies, 60)} us")
+    print (f"Read latency p80: {np.percentile(np_read_latencies, 80)} us")
     print (f"Read latency p95: {np.percentile(np_read_latencies, 95)} us")
     print (f"Read latency p99: {np.percentile(np_read_latencies, 99)} us")
     #print (f"Read latency p99.5: {np.percentile(np_read_latencies, 99.5)} us")
