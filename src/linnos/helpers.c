@@ -236,6 +236,7 @@ void multi_initialize_gpu(const char* cubin_path, int max_batch_size, int ndev) 
     //intialize kernels
     if (cuctx) 
         return;
+    pr_warn("<LAKE trace> begin to initialize gpu for inference. \n");
 
     gpu_cuda_init(0);
     gpu_get_cufunc(cubin_path, "_Z28prediction_final_layer_batchPlS_S_S_", &batch_linnos_final_layer_kernel);
@@ -243,6 +244,7 @@ void multi_initialize_gpu(const char* cubin_path, int max_batch_size, int ndev) 
     gpu_get_cufunc(cubin_path, "_Z28prediction_mid_layer_1_batchPlS_S_S_", &batch_linnos_mid_layer_1_kernel);
     gpu_get_cufunc(cubin_path, "_Z28prediction_mid_layer_2_batchPlS_S_S_", &batch_linnos_mid_layer_2_kernel);
     
+    pr_warn("<LAKE trace> Allocate memory for GPU device. The allocate size = sizeof(long) * LEN_INPUT * max_batch_size = %d", sizeof(long) * LEN_INPUT * max_batch_size);
     for(dev = 0 ; dev < ndev ; dev++){
         for(batch = 0 ; batch < MAX_DEV_BATCHES ; batch++){
             check_error(cuMemAlloc((CUdeviceptr*) &multi_d_input_vec_i[dev][batch], sizeof(long) * LEN_INPUT * max_batch_size), "cuMemAlloc ", __LINE__);
@@ -259,7 +261,7 @@ void multi_initialize_gpu(const char* cubin_path, int max_batch_size, int ndev) 
             
             multi_gpu_outputs[dev][batch] = kava_alloc(64 * max_batch_size * sizeof(long));
             if (!multi_gpu_outputs[dev][batch]) 
-                pr_warn("error allocating inputs_to_gpu:  %lu\n", LEN_INPUT * max_batch_size * sizeof(long));
+                pr_warn("error allocating gpu_outputs:  %lu\n", LEN_INPUT * max_batch_size * sizeof(long));
         }
     }
 }

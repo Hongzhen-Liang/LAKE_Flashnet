@@ -33,6 +33,7 @@ __global__ void prediction_mid_layer_batch(long *weight_0_T_ent, long *bias_0_en
     int stride = blockDim.x;
 	int input_ind = blockIdx.x*LEN_INPUT;
 	int blockId = blockIdx.x;
+	printf("<LAKE trace> [prediction_mid_layer_batch] prepare to predict - mid layer. \n");
 	for (j = threadId, offset=threadId*LEN_INPUT; j < LEN_LAYER_0; j+=stride, offset+=LEN_INPUT*stride) {
 		int update_index = blockId*stride + j;
         mid_res_i[update_index] = 0;
@@ -76,6 +77,7 @@ __global__ void prediction_mid_layer_batch(long *weight_0_T_ent, long *bias_0_en
             mid_res_i[update_index] = 0;
         }		
     }
+	printf("<LAKE trace> [prediction_mid_layer_batch] mid layer give intermediate result: %lu, %lu ... \n", mid_res_i[0], mid_res_i[1]);
 }
 
 __global__ void prediction_mid_layer_1_batch(long *weight_M_1, long *bias_M_1, long *mid_res_i, long *mid_res_1_i) { 
@@ -127,6 +129,7 @@ __global__ void prediction_mid_layer_2_batch(long *weight_M_2, long *bias_M_2, l
 }
 
 __global__ void prediction_final_layer_batch(long *weight_1_T_ent, long *bias_1_ent, long *mid_res_i, long *dd_final_res_i) {
+	printf("<LAKE trace> [prediction_mid_layer_batch] prepare to predict - final layer. \n");
 	int index = blockIdx.x;
 	int threadId = threadIdx.x;
 	int dim = blockDim.x;
@@ -158,6 +161,7 @@ __global__ void prediction_final_layer_batch(long *weight_1_T_ent, long *bias_1_
 		} 
 		dd_final_res_i[update_index] =  dd_final_res_i[update_index] + bias_1_ent[1];
 	}
+	printf("<LAKE trace> [prediction_mid_layer_batch] final layer give intermediate result: %lu, %lu ... \n", dd_final_res_i[0], dd_final_res_i[1]);
 }
 
 // static long *weight_0_T_ent, * bias_0_ent, *weight_1_T_ent, * bias_1_ent; 

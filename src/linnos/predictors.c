@@ -108,7 +108,9 @@ void multi_gpu_predict_batch(char *__feat_vec, int n_vecs, long **weights, int d
 		&weights[1], &weights[3], &multi_d_mid_res_i[dev][batch], &multi_d_final_res_i[dev][batch]
 	};
 
-    check_error(cuLaunchKernel(batch_linnos_mid_layer_kernel, 
+	pr_warn("<LAKE trace> [multi_gpu_predict_batch] Launch a GPU kernel to finish inference.");
+	pr_warn("<LAKE trace> [multi_gpu_predict_batch] The GPU kernel is implemented in `kernel.cu`. \n");
+    check_error(cuLaunchKernel(batch_linnos_mid_layer_kernel,         // => `prediction_mid_layer_batch()` in kernel.cu
 				n_vecs, 1, 1,          //blocks
 				256, 1, 1,   //threads per block
 				0,   //shared mem
@@ -116,7 +118,7 @@ void multi_gpu_predict_batch(char *__feat_vec, int n_vecs, long **weights, int d
 				args, NULL),
 			"cuLaunchKernel", __LINE__);
 
-    check_error(cuLaunchKernel(batch_linnos_final_layer_kernel, 
+    check_error(cuLaunchKernel(batch_linnos_final_layer_kernel,       // => `prediction_final_layer_batch()` in kernel.cu
 				n_vecs, 1, 1,          //blocks
 				64, 1, 1,   //threads per block
 				0,   //shared mem
@@ -210,8 +212,17 @@ void multi_gpu_predict_batch_plus_2(char *__feat_vec, int n_vecs, long **weights
 }
 
 void do_gpu_inference(int n_vecs, long **weights, int dev, int batch_id) {
+	/*
+		@n_vecs: number of input vectors.
+		@weights: weights and bias of model.
+		@dev: device index
+		@batch_id: id index.
+	*/
+	pr_warn("<LAKE trace> [do_gpu_inference] Prepare to do GPU inference. \n");
+	pr_warn("<LAKE trace> [do_gpu_inference] Copy inputs from CPU memory to GPU memory. \n");
 	multi_copy_inputs_to_gpu(n_vecs, dev, batch_id);
 	multi_gpu_predict_batch(0, n_vecs, weights, dev, batch_id);
+	pr_warn("<LAKE trace> [do_gpu_inference] Copy results from GPU memory to CPU memory. \n");
 	multi_copy_results_from_gpu(n_vecs, dev, batch_id);
 }
 
@@ -229,6 +240,11 @@ void do_gpu_inference_plus_two(int n_vecs, long **weights, int dev, int batch_id
 
 //this is what an IO calls when it calls predict()
 bool gpu_batch_entry(char *feat_vec, int n_vecs, long **weights) {
+	/*
+		@feat_vec: input features
+		@n_vecs: number of vectors.
+	*/
+	// pr_warn("<LAKE trace> [gpu_batch_entry()] Prepare to do gpu inference. \n");
 	u16 my_id;
 	u16 my_batch;
 	bool my_prediction, use_cpu, skip;
@@ -250,8 +266,10 @@ bool gpu_batch_entry(char *feat_vec, int n_vecs, long **weights) {
 		pr_warn("COULD NOT FIND DEV\n");
 		return false;
 	}
+	// pr_warn("<LAKE trace> [gpu_batch_entry()] Prepare to Enter again? \n");
 
 enter_again:
+	pr_warn("<LAKE trace> [gpu_batch_entry()] Prepare to do inference. \n");
 	spin_lock_irqsave(&batch_entry[this_dev], irqflags);
 	my_batch = current_batch[this_dev];
 	my_id = waiting[this_dev][my_batch];
@@ -285,6 +303,9 @@ enter_again:
 	skip = cpu_times[model_size] < ia_avg * i;
 	skip |= (window_size_ns <= WINDOW_THRESHOLD);
 	//skip = true;
+
+	// Important: Temporary comments this to see the result of GPU inference.
+
 	if(skip) {
 		spin_unlock_irqrestore(&batch_entry[this_dev], irqflags);
 		n_skipped++;
@@ -341,6 +362,8 @@ enter_again:
 	// }
 
 	//copy inputs to intermediary buffer, but we need to convert into longs for gpu
+	pr_warn("<LAKE trace> Gather input features. \n");
+	pr_warn("<LAKE trace> Copying input features from `feat_vec` to `multi_inputs_to_gpu`. \n");
 	for (i = 0 ; i < LEN_INPUT ; i++)
 		multi_inputs_to_gpu[this_dev][my_batch][my_id*LEN_INPUT+i] = (long) feat_vec[i];
 
@@ -375,6 +398,7 @@ last_req_close:
 				gpu_weights[this_dev].weights, this_dev, my_batch); 
 			my_prediction = gpu_get_prediction(this_dev, my_batch, my_id);
 		}
+		pr_warn("<LAKE trace> Complete the inference with GPU. \n");
 
 		//let everyone go now
 		n_exited[this_dev][my_batch] += 1;

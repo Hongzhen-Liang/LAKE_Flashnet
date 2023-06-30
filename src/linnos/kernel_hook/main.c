@@ -127,6 +127,7 @@ bool is_gpu_inf = false;
  *  Helpers for Batch test
  */
 static void batch_test_attach(void) {
+	pr_warn("<LAKE trace> attch batch test. \n");
 	int i;
 	fptr = batch_test;
 	window_size_hist = vmalloc(512);
@@ -144,6 +145,7 @@ static void batch_test_detach(void) {
  *  Helpers for queue depth stats
  */
 static int qdepth_attach(void) {
+	pr_warn("<LAKE trace> attach qdepth. \n");
 	int err;
 	err = qd_init(); //this sets ptr
 	if (err != 0) return err;
@@ -203,13 +205,15 @@ static int gpu_attach(void) {
 	fptr = gpu_batch_entry;
 	for(devs = devices[0], i=0 ; devs != 0 ; devs = devices[++i]) 
 		ndev++;
-	pr_warn("initing for %d devices\n", ndev);
+	pr_warn("<LAKE trace> prepare to attach GPU. \n");
+	// pr_warn("<LAKE trace> initing for %d devices\n", ndev);
 	multi_initialize_gpu(cubin_path, 512, ndev);
 	window_size_hist = vmalloc(256);
 	for (i=0;i<256;i++) 
 		window_size_hist[i] = 0;
 	if(model_size==0) {
-	 	cpu_gpu_threshold = 8;
+	 	cpu_gpu_threshold = 8;   // Important! Temporary comment this to see the result of using GPU.
+		// cpu_gpu_threshold = 1;
 		max_batch_size = 10;
 	 	window_size_ns = 5*_us;
 		no_reject = false;
@@ -248,7 +252,7 @@ static void gpu_detach(void) {
 }
 static void gpu_copy_weight(int idx) {
 	long **wts = weights[idx];
-	pr_warn("Copying weights for idx %d\n", idx);
+	pr_warn("<LAKE trace> Copying weights of device idx %d\n", idx);
 	copy_weights(wts, &gpu_weights[idx]);
 
 	first_weight_ptr_to_dev[idx] = wts[0];
@@ -259,7 +263,7 @@ static int attach_to_queue(int idx) {
 	struct request_queue *q;
 	long **wts = weights[idx];
 
-	pr_warn("Attaching to queue on %s\n", devices[idx]);
+	pr_warn("<LAKE trace> Attach to queue on %s\n", devices[idx]);
 	dev = blkdev_get_by_path(devices[idx], FMODE_READ|FMODE_WRITE, THIS_MODULE);
 	if(IS_ERR(dev)) {
 		pr_warn("Error getting dev by path (%s): %ld\n", devices[idx], PTR_ERR(dev));
@@ -271,9 +275,13 @@ static int attach_to_queue(int idx) {
 	if (is_gpu_inf) 
 		gpu_copy_weight(idx);
 
+	pr_warn("<LAKE trace> Copying weigths of layer 1. \n");
 	q->weight_0_T = wts[0];
+	pr_warn("<LAKE trace> Copying weigths of layer 2. \n");
 	q->weight_1_T = wts[1];
+	pr_warn("<LAKE trace> Copying bias of layer 1. \n");
 	q->bias_0 = wts[2];
+	pr_warn("<LAKE trace> Copying bias of layer 2. \n");
 	q->bias_1 = wts[3];
 
 	q->weight_2_T = wts[4];
@@ -284,7 +292,7 @@ static int attach_to_queue(int idx) {
 	q->predictor = fptr;
 	q->ml_enabled = true;
 	sysctl_lake_enable_linnos = true;
-	pr_warn("Attached!\n");
+	pr_warn("<LAKE trace> Attached!\n");
 	return 0;
 }
 
@@ -326,6 +334,7 @@ static int __init hook_init(void)
 	const char *devs;
 	int i, err;
 
+	pr_warn("<LAKE Trace> linnos_gpu hook init. \n");
 	sysctl_lake_linnos_debug = SET_SYSCTL_DEBUG;
 	err = parse_arg();
 	if(err < 0) return -2;
