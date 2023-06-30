@@ -7,7 +7,17 @@ import os
 
 
 def generate_1d_var_T(v_name, v_type, digits, thres, input_path):
-
+    '''
+        translate one type of weights from input_path (e.g. weights of 2nd layer) into an array in header file.
+        @v_type:
+            data structure to represent weights. e.g. long
+        @v_name:
+            name of the array. e.g. weight_0_T_sda1
+        @digits:
+            how many digits to be kept for a decimal number. e.g. 4
+        @input_path:
+            weights in format of csv. e.g. mldrive0.csv.weight_0.csv 
+    '''
     v_literal = v_type + ' ' + v_name
 
     row_count = 0
@@ -40,13 +50,13 @@ if len(sys.argv) != 5:
     print('Illegal cmd format')
     exit(1)
 
-workload = sys.argv[1]
-drive = sys.argv[2]
-input_folder = sys.argv[3]
+workload = sys.argv[1]   # Trace
+drive = sys.argv[2]      # sda1
+input_folder = sys.argv[3]   # mlData/drive0weights
 if input_folder[-1] != '/':
     input_folder += '/'
 # print(input_folder)
-output_folder = sys.argv[4]
+output_folder = sys.argv[4]  # weights_header_1ssd
 if output_folder[-1] != '/':
     output_folder += '/'
 # print(output_folder)
@@ -73,7 +83,7 @@ if not os.path.exists(output_folder):
     print('Illegal output')
     exit(1)
 
-sys.stdout = open(output_folder+'/w_'+ workload+"_"+drive+'.h', 'w')
+sys.stdout = open(output_folder+'/w_'+ workload+"_"+drive+'.h', 'w')  # write the header file
 
 print('\n/* '+workload+' */\n')
 from datetime import datetime

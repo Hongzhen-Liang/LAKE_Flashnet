@@ -26,16 +26,16 @@ train_data = pd.read_csv(train_input_path, dtype='float32',sep=',', header=None)
 train_data = train_data.sample(frac=1).reset_index(drop=True)
 train_data = train_data.values
 
-train_input = train_data[:,:31]
-train_output = train_data[:,31]
+train_input = train_data[:,:31]   # features
+train_output = train_data[:,31]   # ground truth
 
 lat_threshold = np.percentile(train_output, percentile_threshold)
 print("lat_threshold: ",lat_threshold)
-num_train_entries = int(len(train_output) * 0.80)
+num_train_entries = int(len(train_output) * 0.80)   # choose 80% as training set and 20% as testing set.
 print("num train entries: ",num_train_entries)
 
-train_Xtrn = train_input[:num_train_entries,:]
-train_Xtst = train_input[num_train_entries:,:]
+train_Xtrn = train_input[:num_train_entries,:]   # training
+train_Xtst = train_input[num_train_entries:,:]   # testing
 train_Xtrn = np.array(train_Xtrn)
 train_Xtst = np.array(train_Xtst)
 
@@ -43,9 +43,9 @@ train_Xtst = np.array(train_Xtst)
 train_y = []
 for num in train_output:
     labels = [0] * 2
-    if num < lat_threshold:
+    if num < lat_threshold:   # accept
         labels[0] = 1
-    else:
+    else:                     # reject
         labels[1] = 1
     train_y.append(labels)
 
