@@ -1,4 +1,6 @@
-#define LEN_INPUT 31
+// For high-granularity_inference, with gran = 4
+// #define LEN_INPUT 31
+#define LEN_INPUT 40
 #define LEN_LAYER_0 256
 #define LEN_LAYER_0_HALF 128
 #define LEN_LAYER_1 2

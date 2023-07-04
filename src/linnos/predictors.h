@@ -20,8 +20,15 @@
 #ifndef __LINNOS_PREDICTORS_H
 #define __LINNOS_PREDICTORS_H
 
-#define FEAT_31
-#define LEN_INPUT 31
+// For high-granularity_inference, with gran = 4
+// #define FEAT_31
+// #define LEN_INPUT 31
+#define FEAT_40
+#define LEN_INPUT 40
+#define ONE_IO_LEN 31
+#define GRANULARITY 4
+#define HIST_SIZE 4
+
 #define LEN_LAYER_0 256
 #define LEN_LAYER_M_1 256
 #define LEN_LAYER_M_2 256

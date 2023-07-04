@@ -12,7 +12,7 @@ def generate_1d_var_T(v_name, v_type, digits, thres, input_path):
         @v_type:
             data structure to represent weights. e.g. long
         @v_name:
-            name of the array. e.g. weight_0_T_sda1
+            name of the array. e.g. weight_0_T_sda
         @digits:
             how many digits to be kept for a decimal number. e.g. 4
         @input_path:
@@ -51,7 +51,7 @@ if len(sys.argv) != 5:
     exit(1)
 
 workload = sys.argv[1]   # Trace
-drive = sys.argv[2]      # sda1
+drive = sys.argv[2]      # sda
 input_folder = sys.argv[3]   # mlData/drive0weights
 if input_folder[-1] != '/':
     input_folder += '/'

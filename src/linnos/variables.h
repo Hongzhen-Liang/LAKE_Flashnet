@@ -61,6 +61,7 @@ extern u32 max_batch_size;
 extern u32 cpu_gpu_threshold;
 extern volatile bool no_reject;
 
+extern long *raw_inputs_to_gpu[NUMBER_DEVICES][MAX_DEV_BATCHES];
 extern long *multi_inputs_to_gpu[NUMBER_DEVICES][MAX_DEV_BATCHES];
 extern long *multi_gpu_outputs[NUMBER_DEVICES][MAX_DEV_BATCHES];
 

@@ -51,8 +51,11 @@ u64 get_tsns() {
 #include "helpers.h"
 #include "predictors.h"
 #include "variables.h"
-#define FEAT_31
-#define LEN_INPUT 31
+// For high-granularity_inference, with gran = 4
+// #define FEAT_31
+// #define LEN_INPUT 31
+#define FEAT_40
+#define LEN_INPUT 40
 #define LEN_LAYER_0 256
 #define LEN_LAYER_0_HALF 128
 #define LEN_LAYER_1 2
@@ -92,7 +95,10 @@ static int run_gpu(void) {
     u64 false_count=0, true_count=0;
     u64 result_mismatches = 0;
     int batch_size;
-    char input[31] = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,9,0,0,0,9,0,0,0,9};
+
+    // For high-granularity_inference, with gran = 4
+    // [hist_size_-4, hist_size_-3, hist_size_-2, hist_size_-1, IO_size_0, IO_size_1, IO_size_2, IO_size_3, hist_latency_-4, hist_latency_-3. hist_latency_-2, hist_latency_-1]
+    char input[LEN_INPUT] = {0,0,0, 0,0,0, 0,0,0, 0,0,0, 0,0,0, 0,0,0, 0,0,0, 0,0,0, 0,0,1,0, 0,0,0,9, 0,0,0,9, 0,0,0,9};
     u64 t_start, t_stop, c_start, c_stop;
     u64* comp_run_times;
     u64* total_run_times;
@@ -185,7 +191,7 @@ static int run_gpu(void) {
             for (j = 0 ; j < RUNS ; j++) {
                 t_start = ktime_get_ns();
                 for(int k = 0; k < batch_size; k++) {
-                    char input_copy[31];
+                    char input_copy[LEN_INPUT];
                     memcpy (input_copy, input, sizeof(input));
                     if (nn==0) cpu_prediction_model(input, 1, test_weights);
                     else if(nn==1) cpu_prediction_model_plus_1(input, 1, test_weights);

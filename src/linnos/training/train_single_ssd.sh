@@ -2,16 +2,16 @@
 
 TraceTag='trace'
 
-if [ $# -ne 2 ]
+if [ $# -ne 3 ]
   then
-    echo "Usage train.sh <trace_1> <inflection_percentile>"
-    # eg : ./train.sh testTraces/hacktest.trace testTraces/hacktest.trace testTraces/hacktest.trace 85
+    echo "Usage train.sh <trace_1> <inflection_percentile> <granularity>"
+    # eg : ./train.sh testTraces/hacktest.trace testTraces/hacktest.trace testTraces/hacktest.trace 85 3
     exit
 fi
 
-echo $1, $2
+echo $1, $2, $3
 
-sudo ../io_replayer/replayer baseline mlData/TrainTraceOutput 1 /dev/sda1 $1 
+sudo ../io_replayer/replayer baseline mlData/TrainTraceOutput 1 /dev/sda $1 
 
 pip3 install numpy
 pip3 install --upgrade pip
@@ -25,13 +25,13 @@ for i in 0
 do
    python3 traceParser.py direct 3 4 \
    mlData/TrainTraceOutput_baseline.data mlData/temp1 \
-   mlData/"mldrive${i}.csv" "$i"
+   mlData/"mldrive${i}.csv" "$i" $3
 done
 
 for i in 0 
 do
    python3 pred1.py \
-   mlData/"mldrive${i}.csv" $2 > mlData/"mldrive${i}results".txt
+   mlData/"mldrive${i}.csv" $2 $3 > mlData/"mldrive${i}results".txt
 done
 
 cd mlData
@@ -40,4 +40,4 @@ cp mldrive0.csv.* drive0weights
 
 cd ..
 mkdir -p weights_header_1ssd
-python3 mlHeaderGen.py Trace sda1 mlData/drive0weights weights_header_1ssd
+python3 mlHeaderGen.py Trace sda mlData/drive0weights weights_header_1ssd

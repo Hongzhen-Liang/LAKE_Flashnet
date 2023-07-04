@@ -64,7 +64,7 @@ MODULE_PARM_DESC(model_size, "what model to use, 0 default, 1 +1, 2 +2");
   For NN+2, uncomment below //NN+2 (with no zeros)
 */
 // #include "weights_header/mix/w_Trace_sdb.h"
-#include "weights_header/mix/w_Trace_sda1.h"
+#include "weights_header/mix/w_Trace_sda.h"
 // #include "weights_header/mix/w_Trace_sda2.h"
 // #include "weights_header/mix/w_Trace_nvme2n1.h"
 //#include "weights_header/mix+1/w_Trace_nvme0n1.h"
@@ -86,7 +86,7 @@ MODULE_PARM_DESC(model_size, "what model to use, 0 default, 1 +1, 2 +2");
 
 long *weights[][8] = {
 	//NN
-	{weight_0_T_sda1, weight_1_T_sda1, bias_0_sda1, bias_1_sda1 ,0,0,0,0},
+	{weight_0_T_sda, weight_1_T_sda, bias_0_sda, bias_1_sda ,0,0,0,0},
 	// {weight_0_T_sdb, weight_1_T_sdb, bias_0_sdb, bias_1_sdb ,0,0,0,0},
 	// {weight_0_T_sda2, weight_1_T_sda2, bias_0_sda2, bias_1_sda2 ,0,0,0,0},
 	// {weight_0_T_nvme2n1, weight_1_T_nvme2n1, bias_0_nvme2n1, bias_1_nvme2n1 ,0,0,0,0},
@@ -107,7 +107,7 @@ long *weights[][8] = {
 };
 
 static const char *devices[] = {
-	"/dev/sda1",
+	"/dev/sda",
 	// "/dev/sdb",
 	// "/dev/sda2",
 	// "/dev/nvme2n1",
@@ -212,8 +212,8 @@ static int gpu_attach(void) {
 	for (i=0;i<256;i++) 
 		window_size_hist[i] = 0;
 	if(model_size==0) {
-	 	cpu_gpu_threshold = 8;   // Important! Temporary comment this to see the result of using GPU.
-		// cpu_gpu_threshold = 1;
+	 	// cpu_gpu_threshold = 8;   // Important! Temporary comment this to see the result of using GPU.
+		cpu_gpu_threshold = 4;
 		max_batch_size = 10;
 	 	window_size_ns = 5*_us;
 		no_reject = false;

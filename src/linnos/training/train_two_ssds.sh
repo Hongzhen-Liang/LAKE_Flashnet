@@ -2,14 +2,14 @@
 
 TraceTag='trace'
 
-if [ $# -ne 3 ]
+if [ $# -ne 4 ]
   then
-    echo "Usage train.sh <trace_1> <trace_2> <inflection_percentile>"
-    # eg : ./train.sh testTraces/hacktest.trace testTraces/hacktest.trace testTraces/hacktest.trace 85
+    echo "Usage train.sh <trace_1> <trace_2> <inflection_percentile> <granularity>"
+    # eg : ./train.sh testTraces/hacktest.trace testTraces/hacktest.trace testTraces/hacktest.trace 85 4
     exit
 fi
 
-echo $1, $2, $3
+echo $1, $2, $3, $4
 
 sudo ../io_replayer/replayer baseline mlData/TrainTraceOutput 2 /dev/sdb-/dev/sda2 $1 $2
 
@@ -25,13 +25,13 @@ for i in 0 1
 do
    python3 traceParser.py direct 3 4 \
    mlData/TrainTraceOutput_baseline.data mlData/temp1 \
-   mlData/"mldrive${i}.csv" "$i"
+   mlData/"mldrive${i}.csv" "$i" $4
 done
 
 for i in 0 1
 do
    python3 pred1.py \
-   mlData/"mldrive${i}.csv" $3 > mlData/"mldrive${i}results".txt
+   mlData/"mldrive${i}.csv" $3 $4 > mlData/"mldrive${i}results".txt
 done
 
 cd mlData

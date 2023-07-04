@@ -110,6 +110,8 @@ void multi_gpu_predict_batch(char *__feat_vec, int n_vecs, long **weights, int d
 
 	pr_warn("<LAKE trace> [multi_gpu_predict_batch] Launch a GPU kernel to finish inference.");
 	pr_warn("<LAKE trace> [multi_gpu_predict_batch] The GPU kernel is implemented in `kernel.cu`. \n");
+	pr_warn("<LAKE trace> [multi_gpu_predict_batch] The number of vectors to be inferenced is: %d. \n", n_vecs);
+
     check_error(cuLaunchKernel(batch_linnos_mid_layer_kernel,         // => `prediction_mid_layer_batch()` in kernel.cu
 				n_vecs, 1, 1,          //blocks
 				256, 1, 1,   //threads per block
@@ -211,6 +213,44 @@ void multi_gpu_predict_batch_plus_2(char *__feat_vec, int n_vecs, long **weights
 			"cuLaunchKernel", __LINE__);
 }
 
+
+int re_arrange_features(int n_vecs, int dev_index, int batch_index) {
+	/*
+		re-arrange the vectors according to the requirement of high-granularity inference.
+		@n_vecs:
+			number of vectors for this time of inference.
+		Each vector is in format of:
+			[hist_size_1, hist_size_2, hist_size_3, hist_size_4, IO_size_i, hist_latency_1, hist_latency_2, hist_latency_3, hist_latency_4]
+	*/
+	int group_id = 0;
+	for (int i = 0; i < n_vecs; i ++){
+		if ((i + 1) % GRANULARITY == 0) {     // we use the history size and latency of the last IO request in a same granularity group.
+			// 1. append the history IO size.
+			for (int j = 0; j < HIST_SIZE * 3; j++) {    
+				multi_inputs_to_gpu[dev_index][batch_index][group_id*LEN_INPUT+j] = raw_inputs_to_gpu[dev_index][batch_index][i*ONE_IO_LEN+j];
+			}
+			// 2. append the current IO size.
+			for (int j = 0; j < 3; j++){
+				multi_inputs_to_gpu[dev_index][batch_index][group_id*LEN_INPUT+HIST_SIZE*3+(GRANULARITY-1)*3+j] = raw_inputs_to_gpu[dev_index][batch_index][i*ONE_IO_LEN+HIST_SIZE*3+j];
+			}
+			// 3. append the history latency.
+			for (int j = 0; j < HIST_SIZE * 4; j++){    
+				multi_inputs_to_gpu[dev_index][batch_index][group_id*LEN_INPUT+HIST_SIZE*3+GRANULARITY*3+j] = raw_inputs_to_gpu[dev_index][batch_index][i*ONE_IO_LEN+HIST_SIZE*3+3+j];
+			}
+			group_id += 1;
+		}
+		else{
+			// append the current IO size.
+			for (int j = 0; j < 3; j++){
+				multi_inputs_to_gpu[dev_index][batch_index][group_id*LEN_INPUT+HIST_SIZE*3+i*3+j] = raw_inputs_to_gpu[dev_index][batch_index][i*ONE_IO_LEN+HIST_SIZE*3+j];
+			}
+		}
+	}
+	int num_groups = group_id + 1;
+	return num_groups;	
+}
+
+
 void do_gpu_inference(int n_vecs, long **weights, int dev, int batch_id) {
 	/*
 		@n_vecs: number of input vectors.
@@ -266,10 +306,9 @@ bool gpu_batch_entry(char *feat_vec, int n_vecs, long **weights) {
 		pr_warn("COULD NOT FIND DEV\n");
 		return false;
 	}
-	// pr_warn("<LAKE trace> [gpu_batch_entry()] Prepare to Enter again? \n");
 
 enter_again:
-	pr_warn("<LAKE trace> [gpu_batch_entry()] Prepare to do inference. \n");
+	// lock here.
 	spin_lock_irqsave(&batch_entry[this_dev], irqflags);
 	my_batch = current_batch[this_dev];
 	my_id = waiting[this_dev][my_batch];
@@ -305,30 +344,40 @@ enter_again:
 	//skip = true;
 
 	// Important: Temporary comments this to see the result of GPU inference.
-
-	if(skip) {
-		spin_unlock_irqrestore(&batch_entry[this_dev], irqflags);
-		n_skipped++;
-		my_prediction = cpu_prediction_model(feat_vec, n_vecs, weights);
-		
-		return no_reject ? false : my_prediction;
-	}
+	// if(skip) {
+	// 	spin_unlock_irqrestore(&batch_entry[this_dev], irqflags);
+	// 	n_skipped++;
+	// 	my_prediction = cpu_prediction_model(feat_vec, n_vecs, weights);
+	// 	return no_reject ? false : my_prediction;
+	// }
 
 	//we can. would we close this batch?
-	dif = my_arrival - first_arrival[this_dev][my_batch];
-	is_last = dif >= window_size_ns;
-	is_last = is_last && my_id; //cant be first
-	if (is_last || my_id >= max_batch_size) {
-		//pr_warn("i am last of batch %d  time dif? %d  [%lld]!\n", my_batch, is_last, dif);
-		//if so, increase current batch
-		current_batch[this_dev] = (current_batch[this_dev]+1) % MAX_DEV_BATCHES;
-		//we are last, mark batch as full
+
+	/* 
+		Temporary change!!!! Don't Delete!! 
+	*/
+	// dif = my_arrival - first_arrival[this_dev][my_batch];
+	// is_last = dif >= window_size_ns;
+	// is_last = is_last && my_id; //cant be first
+	// if (is_last || my_id >= max_batch_size) {
+	// 	//pr_warn("i am last of batch %d  time dif? %d  [%lld]!\n", my_batch, is_last, dif);
+	// 	//if so, increase current batch
+	// 	current_batch[this_dev] = (current_batch[this_dev]+1) % MAX_DEV_BATCHES;
+	// 	//we are last, mark batch as full
+	// 	is_last = true;
+	// 	batch_closed[this_dev][my_batch] = true;
+	// }
+	// //we can but not we are not last
+	// else {
+	// 	//pr_warn("  not last\n");
+	// 	is_last = false;
+	// }
+
+	// Temporary
+	// wait until there are 4 IO request!
+	if (waiting[this_dev][my_batch] >= GRANULARITY - 1){
 		is_last = true;
-		batch_closed[this_dev][my_batch] = true;
-	}
-	//we can but not we are not last
-	else {
-		//pr_warn("  not last\n");
+	} else{
 		is_last = false;
 	}
 
@@ -342,38 +391,28 @@ enter_again:
 		n_exited[this_dev][my_batch] = 0;
 		first_arrival[this_dev][my_batch] = ktime_get_ns();
 	}
-	//let others execute
+	//Unlock here let others execute
 	spin_unlock_irqrestore(&batch_entry[this_dev], irqflags);
 
-	// for (i = 0 ; i < ia_avg_sz ; i++)
-	// 	ia_avg += ia_avgs[this_dev][i];
-	// ia_avg = ia_avg >> ia_avg_shift;
-	
-	// //if (cpu_gpu_threshold * ia_avg  > cpu_times[model_size] * ia_avg) { //use cpu
-	// if (ia_avg >= window_size_ns) {
-	// 	my_arrival = ktime_get_ns();
-	// 	tdiff = my_arrival - last_arrival[this_dev][my_batch];
-	// 	last_arrival[this_dev][my_batch] = my_arrival;
-	// 	ia_cur[this_dev] += 1;
-	// 	ia_avgs[this_dev][ ia_cur[this_dev] % ia_avg_sz ] = tdiff;
-	// 	waiting[this_dev][my_batch] = 0;
-	// 	spin_unlock_irqrestore(&per_batch_lock[this_dev][my_batch], irqflags);
-	// 	goto lonely;
-	// }
-
 	//copy inputs to intermediary buffer, but we need to convert into longs for gpu
-	pr_warn("<LAKE trace> Gather input features. \n");
-	pr_warn("<LAKE trace> Copying input features from `feat_vec` to `multi_inputs_to_gpu`. \n");
-	for (i = 0 ; i < LEN_INPUT ; i++)
-		multi_inputs_to_gpu[this_dev][my_batch][my_id*LEN_INPUT+i] = (long) feat_vec[i];
+	for (i = 0 ; i < ONE_IO_LEN ; i++)
+		raw_inputs_to_gpu[this_dev][my_batch][my_id*ONE_IO_LEN+i] = (long) feat_vec[i];
 
-	//last closes everything
+	/* 
+		Temporary:
+			wait until there are 4 IO request!
+	*/
+	while (waiting[this_dev][my_batch] <= GRANULARITY) {
+	}
+
+	// 1. for the last request:
+	// last close everything: the last request will do all the inference work of this batch.
 	if (is_last) {
 last_req_close:
+		pr_warn("<LAKE trace> The last one begin to close the inference. Now the waiting size is: %d", waiting[this_dev][my_batch]);
 		//record in histogram
 		window_size_hist[waiting[this_dev][my_batch]] += 1;
 		//pr_warn(">> closing batch %d size %d\n", my_batch, waiting[this_dev][my_batch]);
-
 		//lonely request :(
 		if(waiting[this_dev][my_batch] <= 1) {
 			use_cpu = true;
@@ -386,17 +425,22 @@ last_req_close:
 		}
 		//use the gpu
 		else {
+			// Multiple IO request to be handled together.
 			use_cpu_instead[this_dev][my_batch] = false;
 			use_cpu = false;
 			n_used_gpu++;
 			//my_prediction = false; //XXX
-			if (model_size == 0) do_gpu_inference(waiting[this_dev][my_batch], 
+			// re-arrange the input features to be align with high-granularity infenrece.
+			int new_n_vecs = re_arrange_features(waiting[this_dev][my_batch], this_dev, my_batch);
+
+			// waiting[this_dev][my_batch] means number of vectors to be predicted in a once.
+			if (model_size == 0) do_gpu_inference(new_n_vecs, 
 				gpu_weights[this_dev].weights, this_dev, my_batch); 
-			else if (model_size == 1) do_gpu_inference_plus_one(waiting[this_dev][my_batch], 
+			else if (model_size == 1) do_gpu_inference_plus_one(new_n_vecs, 
 				gpu_weights[this_dev].weights, this_dev, my_batch); 
-			else do_gpu_inference_plus_two(waiting[this_dev][my_batch], 
+			else do_gpu_inference_plus_two(new_n_vecs, 
 				gpu_weights[this_dev].weights, this_dev, my_batch); 
-			my_prediction = gpu_get_prediction(this_dev, my_batch, my_id);
+			my_prediction = gpu_get_prediction(this_dev, my_batch, my_id / GRANULARITY);
 		}
 		pr_warn("<LAKE trace> Complete the inference with GPU. \n");
 
@@ -424,9 +468,8 @@ reset_this_batch:
 			
 		return no_reject ? false : my_prediction;
 	}
-
-	//not last
-	//maybe this batch will never have a last, so we have to handle it. first may becomes last
+	// for the request which is not the last one
+	// maybe this batch will never have a last, so we have to handle it. first may becomes last
 	if (my_id == 0) {
 		err = wait_for_completion_timeout(&batch_completed[this_dev][my_batch], usecs_to_jiffies((window_size_ns)/1000));
 		//if this was a timeout, do what the last would to
@@ -463,7 +506,7 @@ reset_this_batch:
 
 	use_cpu = use_cpu_instead[this_dev][my_batch];
 	if (!use_cpu) 
-		my_prediction = gpu_get_prediction(this_dev, my_batch, my_id);
+		my_prediction = gpu_get_prediction(this_dev, my_batch, my_id / GRANULARITY);
 
 	//spin_lock_irqsave(&per_batch_lock[this_dev][my_batch], irqflags);
 	n_exited[this_dev][my_batch] += 1;

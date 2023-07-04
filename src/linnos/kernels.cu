@@ -21,7 +21,9 @@
 #include <stdio.h>
 #include <chrono>
 #include "test_weights.h"
-#define LEN_INPUT 31
+// For high-granularity_inference, with gran = 4
+// #define LEN_INPUT 31
+#define LEN_INPUT 40
 #define LEN_LAYER_0 256
 #define LEN_LAYER_0_HALF 128
 #define LEN_LAYER_1 2
@@ -31,9 +33,8 @@ __global__ void prediction_mid_layer_batch(long *weight_0_T_ent, long *bias_0_en
 
 	int threadId = threadIdx.x;
     int stride = blockDim.x;
-	int input_ind = blockIdx.x*LEN_INPUT;
+	int input_ind = blockIdx.x*LEN_INPUT;     // locate the input blockId
 	int blockId = blockIdx.x;
-	printf("<LAKE trace> [prediction_mid_layer_batch] prepare to predict - mid layer. \n");
 	for (j = threadId, offset=threadId*LEN_INPUT; j < LEN_LAYER_0; j+=stride, offset+=LEN_INPUT*stride) {
 		int update_index = blockId*stride + j;
         mid_res_i[update_index] = 0;
@@ -68,7 +69,16 @@ __global__ void prediction_mid_layer_batch(long *weight_0_T_ent, long *bias_0_en
 		+ input_vec_i[input_ind + 27] * weight_0_T_ent[offset+27]
 		+ input_vec_i[input_ind + 28] * weight_0_T_ent[offset+28]
 		+ input_vec_i[input_ind + 29] * weight_0_T_ent[offset+29]
-		+ input_vec_i[input_ind + 30] * weight_0_T_ent[offset+30];
+		+ input_vec_i[input_ind + 30] * weight_0_T_ent[offset+30]
+		+ input_vec_i[input_ind + 31] * weight_0_T_ent[offset+31]
+		+ input_vec_i[input_ind + 32] * weight_0_T_ent[offset+32]
+		+ input_vec_i[input_ind + 33] * weight_0_T_ent[offset+33]
+		+ input_vec_i[input_ind + 34] * weight_0_T_ent[offset+34]
+		+ input_vec_i[input_ind + 35] * weight_0_T_ent[offset+35]
+		+ input_vec_i[input_ind + 36] * weight_0_T_ent[offset+36]
+		+ input_vec_i[input_ind + 37] * weight_0_T_ent[offset+37]
+		+ input_vec_i[input_ind + 38] * weight_0_T_ent[offset+38]
+		+ input_vec_i[input_ind + 39] * weight_0_T_ent[offset+39];
 
         // apply bias
         mid_res_i[update_index] += bias_0_ent[threadId];
@@ -77,7 +87,6 @@ __global__ void prediction_mid_layer_batch(long *weight_0_T_ent, long *bias_0_en
             mid_res_i[update_index] = 0;
         }		
     }
-	printf("<LAKE trace> [prediction_mid_layer_batch] mid layer give intermediate result: %lu, %lu ... \n", mid_res_i[0], mid_res_i[1]);
 }
 
 __global__ void prediction_mid_layer_1_batch(long *weight_M_1, long *bias_M_1, long *mid_res_i, long *mid_res_1_i) { 
@@ -161,7 +170,6 @@ __global__ void prediction_final_layer_batch(long *weight_1_T_ent, long *bias_1_
 		} 
 		dd_final_res_i[update_index] =  dd_final_res_i[update_index] + bias_1_ent[1];
 	}
-	printf("<LAKE trace> [prediction_mid_layer_batch] final layer give intermediate result: %lu, %lu ... \n", dd_final_res_i[0], dd_final_res_i[1]);
 }
 
 // static long *weight_0_T_ent, * bias_0_ent, *weight_1_T_ent, * bias_1_ent; 

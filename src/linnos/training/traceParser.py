@@ -32,8 +32,8 @@ def generate_raw_vec(input_path, output_path, device_index):
             The features of a row is [TS, LATENCY, OP, SIZE, OFFSET, SUBMISSION, DEVICE]
         @output_path:
             Points to the file `temp1`.
-            The features of a row are row[issue_i] = [pending_pages_(compelete-4), pending_pages_(compelete-3), pending_pages_(compelete-2), pending_pages_(compelete-1), pending_pages_(issue_i), latency_(compelete-4), latency_(compelete-3), latency_(compelete-2), latency_(compelete-1), latency_(issue_i)]
-            e.g. pending_pages_(compelete-1) means the pending pages of the last complete request.
+            The features of a row are row[issue_i] = [hist_size_(compelete-4), hist_size_(compelete-3), hist_size_(compelete-2), hist_size_(compelete-1), IO_size(issue_i), hist_latency_(compelete-4), hist_latency_(compelete-3), hist_latency_(compelete-2), hist_latency_(compelete-1), hist_latency_(issue_i)]
+            e.g. hist_size_(compelete-1) means the pending pages of the last complete request.
     '''
     with open(input_path, 'r') as input_file:
         input_csv = csv.reader(input_file)
@@ -88,7 +88,7 @@ def generate_raw_vec(input_path, output_path, device_index):
                 # io becomes [size in pages, type_op, latency, pending_pages, index]
 
                 # LEN_HIS_QUEUE = 4
-                # raw_vec[issue_i] = [pending_pages_(compelete-4), pending_pages_(compelete-3), pending_pages_(compelete-2), pending_pages_(compelete-1), pending_pages_(issue_i), latency_(compelete-4), latency_(compelete-3), latency_(compelete-2), latency_(compelete-1), latency_(issue_i)]
+                # raw_vec[issue_i] = [hist_size_(compelete-4), hist_size_(compelete-3), hist_size_(compelete-2), hist_size_(compelete-1), hist_size_(issue_i), hist_latency_(compelete-4), hist_latency_(compelete-3), hist_latency_(compelete-2), hist_latency_(compelete-1), hist_latency_(issue_i)]
                 if io[1] == IO_READ and skip >= LEN_HIS_QUEUE:  #start doing this after 4th
                     #print("actually apending now")
                     count += 1
@@ -114,12 +114,65 @@ def generate_raw_vec(input_path, output_path, device_index):
         print('Done:', count, 'vectors')
         print('wrote to ', output_path)
 
-def generate_ml_vec(len_pending, len_latency, input_path, output_path):
+
+def rearrange_feats(granularity, input_path, output_path):
+    '''
+        Called after generated `temp1` by generate_raw_vec().
+        @granularity:
+            The number of IOs to be grouped together.
+        @input_path:
+            `temp1` which has the rows structure:
+                [hist_size_(compelete-4), hist_size_(compelete-3), hist_size_(compelete-2), hist_size_(compelete-1), IO_size(1), hist_latency_(compelete-4), hist_latency_(compelete-3), hist_latency_(compelete-2), hist_latency_(compelete-1), hist_latency_(1)]
+                [hist_size_(compelete'-4), hist_size_(compelete'-3), hist_size_(compelete'-2), hist_size_(compelete'-1), IO_size(2), hist_latency_(compelete'-4), hist_latency_(compelete'-3), hist_latency_(compelete'-2), hist_latency_(compelete'-1), hist_latency_(2)]
+                [hist_size_(compelete''-4), hist_size_(compelete''-3), hist_size_(compelete''-2), hist_size_(compelete''-1), IO_size(3), hist_latency_(compelete''-4), hist_latency_(compelete''-3), hist_latency_(compelete''-2), hist_latency_(compelete''-1), hist_latency_(3)]
+                [hist_size_(compelete```-4), hist_size_(compelete```-3), hist_size_(compelete```-2), hist_size_(compelete```-1), IO_size(4), hist_latency_(compelete```-4), hist_latency_(compelete```-3), hist_latency_(compelete```-2), hist_latency_(compelete```-1), hist_latency_(4)]
+                [hist_size_(compelete''''-4), hist_size_(compelete''''-3), hist_size_(compelete''''-2), hist_size_(compelete''''-1), IO_size(5), hist_latency_(compelete''''-4), hist_latency_(compelete''''-3), hist_latency_(compelete''''-2), hist_latency_(compelete''''-1), hist_latency_(5)]
+                ...
+        @output_path:
+            group rows of `temp1` together according to @granularity. If @granularity = 4, the output rows structure will be:
+                [hist_size_(compelete```-4), hist_size_(compelete```-3), hist_size_(compelete```-2), hist_size_(compelete```-1), IO_size(1), IO_size(2), IO_size(3), IO_size(4), hist_latency_(compelete```-4), hist_latency_(compelete```-3), hist_latency_(compelete```-2), hist_latency_(compelete```-1), hist_latency_(1), hist_latency_(2), hist_latency_(3), hist_latency_(4)]
+                [hist_size_(compelete''''-4), hist_size_(compelete''''-3), hist_size_(compelete''''-2), hist_size_(compelete''''-1), IO_size(2), IO_size(3), IO_size(4), IO_size(5), hist_latency_(compelete''''-4), hist_latency_(compelete''''-3), hist_latency_(compelete''''-2), hist_latency_(compelete''''-1), hist_latency_(2), hist_latency_(3), hist_latency_(4), hist_latency_(5)]
+                ...
+    '''
+
+    input_rows = []
+    count = 0
+    with open(input_path, 'r') as input_f:
+        for line in input_f:
+            input_rows.append(line.strip("\n").split(","))
+
+    with open(output_path, 'w') as output_f:
+        for i in range(granularity - 1, len(input_rows)):
+            hist_size_list = [0] * LEN_HIS_QUEUE
+            hist_latency_list = [0] * LEN_HIS_QUEUE
+            IO_size_list = [0] * granularity
+            latency_list = [0] * granularity
+
+            current_io = input_rows[i]
+            for j in range(LEN_HIS_QUEUE):
+                hist_size_list[j] = current_io[j]
+                hist_latency_list[j] = current_io[j + LEN_HIS_QUEUE + 1]
+
+            for hist_index in range(granularity):
+                IO_size_list[hist_index] = input_rows[i - granularity + 1 + hist_index][LEN_HIS_QUEUE]
+                latency_list[hist_index] = input_rows[i - granularity + 1 + hist_index][-1]
+
+            new_feat_row = hist_size_list + IO_size_list + hist_latency_list + latency_list
+            output_f.write(','.join(str(x) for x in new_feat_row)+'\n')
+            count += 1
+
+        print('Done:', count, 'vectors')
+        print('wrote to ', output_path)
+
+
+def generate_ml_vec(granularity, len_pending, len_latency, input_path, output_path):
     '''
         Translate the `temp1` to `mldrive0.csv`
+        @granularity:
+            The number of IOs to be grouped together.
         @input_path:
             `temp1` file generated by `generate_raw_vec()`.
-            The features are: row[issue_i] = [pending_pages_(compelete-4), pending_pages_(compelete-3), pending_pages_(compelete-2), pending_pages_(compelete-1), pending_pages_(issue_i), latency_(compelete-4), latency_(compelete-3), latency_(compelete-2), latency_(compelete-1), latency_(issue_i)]
+            The features are: row[issue_i] = [hist_size_(compelete-4), hist_size_(compelete-3), hist_size_(compelete-2), hist_size_(compelete-1), hist_size_(issue_i), hist_latency_(compelete-4), hist_latency_(compelete-3), hist_latency_(compelete-2), hist_latency_(compelete-1), hist_latency_(issue_i)]
         @output_path:
             'mlData/mldrive0.csv'
             The features are the same as `temp1`, but digits of each feature are seperated.
@@ -136,17 +189,18 @@ def generate_ml_vec(len_pending, len_latency, input_path, output_path):
         #9,5,10,15,4,51,189,75,54,157
         for rvec in input_csv:
             tmp_vec = []
-            for i in range(LEN_HIS_QUEUE+1):  # LEN_HIS_QUEUE = 4
-                pending_io = int(rvec[i])    # [pending_pages_(compelete-4), pending_pages_(compelete-3), pending_pages_(compelete-2), pending_pages_(compelete-1), pending_pages_(issue_i)]
+            for i in range(LEN_HIS_QUEUE+granularity):  # LEN_HIS_QUEUE = 4
+                pending_io = int(rvec[i])    # [hist_size_(compelete-4), hist_size_(compelete-3), hist_size_(compelete-2), hist_size_(compelete-1), hist_size_(issue_i)]
                 if pending_io > max_pending:
                     pending_io = max_pending
                 tmp_vec.append(','.join(x for x in str(pending_io).rjust(len_pending, '0')))
             for i in range(LEN_HIS_QUEUE):
-                latency = int(rvec[i+LEN_HIS_QUEUE+1])  # [latency_(compelete-4), latency_(compelete-3), latency_(compelete-2), latency_(compelete-1)]
+                latency = int(rvec[i+LEN_HIS_QUEUE+granularity])  # [hist_latency_(compelete-4), hist_latency_(compelete-3), hist_latency_(compelete-2), hist_latency_(compelete-1)]
                 if latency > max_latency:
                     latency = max_latency
                 tmp_vec.append(','.join(x for x in str(latency).rjust(len_latency, '0')))
-            tmp_vec.append(rvec[-1]) # [latency_(issue_i)]
+            for i in range(granularity):
+                tmp_vec.append(rvec[-granularity + i]) # [hist_latency_(issue_i)]
             output_file.write(','.join(x for x in tmp_vec)+'\n')
             count += 1
             # print("writing ", ','.join(x for x in tmp_vec)+'\n')
@@ -176,18 +230,21 @@ elif mode == 'ml':
     generate_ml_vec(len_pending, len_latency, raw_path, ml_path)
 elif mode == 'direct':
     #only modified
-    if len(sys.argv) != 8:
+    if len(sys.argv) != 9:
         print('illegal cmd format')
         exit(1)
     len_pending = int(sys.argv[2])   # = 3
     len_latency = int(sys.argv[3])   # = 4
     trace_path = sys.argv[4]  #mlData/TrainTraceOutput
     temp_file_path = sys.argv[5]  #mlData/temp1
+    temp_file_rearrange_path = temp_file_path + '_rearrange'
     output_path = sys.argv[6] #mlData/"mldrive${i}.csv"
     device_index = sys.argv[7] #"$i"
+    granularity = int(sys.argv[8])   # = 4
 
     generate_raw_vec(trace_path, temp_file_path, device_index)
-    generate_ml_vec(len_pending, len_latency, temp_file_path, output_path)
+    rearrange_feats(granularity, temp_file_path, temp_file_rearrange_path)
+    generate_ml_vec(granularity, len_pending, len_latency, temp_file_rearrange_path, output_path)
 else:
     print('illegal mode code')
     exit(1)

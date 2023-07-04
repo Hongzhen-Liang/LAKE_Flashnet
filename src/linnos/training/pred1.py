@@ -16,21 +16,32 @@ from keras.layers import Dense
 from sklearn.metrics import classification_report
 import sys
 
+LEN_HIS_QUEUE = 4
 
 train_input_path = sys.argv[1]
 percentile_threshold = float(sys.argv[2])
+granularity = int(sys.argv[3])
+
+feats_num = 3 * (LEN_HIS_QUEUE + granularity) + 4 * LEN_HIS_QUEUE
+ground_truth_num = granularity
+print("features num: ", feats_num)
 
 custom_loss = 5.0
 
 train_data = pd.read_csv(train_input_path, dtype='float32',sep=',', header=None)
+
+# retrieve all the IO's latency out and determine the lat_latency
+latency_list = np.array(train_data)[:,feats_num].tolist() + np.array(train_data)[-1,feats_num + 1:].tolist()
+lat_threshold = np.percentile(latency_list, percentile_threshold)
+print("lat_threshold: ",lat_threshold)
+
+# random sample the training set
 train_data = train_data.sample(frac=1).reset_index(drop=True)
 train_data = train_data.values
+train_input = train_data[:,:feats_num]   # features
+train_output = train_data[:,feats_num:]   # ground truth
 
-train_input = train_data[:,:31]   # features
-train_output = train_data[:,31]   # ground truth
 
-lat_threshold = np.percentile(train_output, percentile_threshold)
-print("lat_threshold: ",lat_threshold)
 num_train_entries = int(len(train_output) * 0.80)   # choose 80% as training set and 20% as testing set.
 print("num train entries: ",num_train_entries)
 
@@ -39,13 +50,19 @@ train_Xtst = train_input[num_train_entries:,:]   # testing
 train_Xtrn = np.array(train_Xtrn)
 train_Xtst = np.array(train_Xtst)
 
+
 #Classification
 train_y = []
-for num in train_output:
+for latency_list in train_output:
     labels = [0] * 2
-    if num < lat_threshold:   # accept
+    accept = True
+    for lat in latency_list:
+        if lat > lat_threshold:     # at least one latency be rejected will make all the IO in the same group to be rejected.
+            accept = False
+
+    if accept:
         labels[0] = 1
-    else:                     # reject
+    else:
         labels[1] = 1
     train_y.append(labels)
 
@@ -81,7 +98,7 @@ w_array[1, 0] = custom_loss   #Custom Loss Multiplier
 ncce = partial(w_categorical_crossentropy, weights=w_array)
 #----------------------------------------------------------------------
 model = Sequential()
-model.add(Dense(256, input_dim=31, activation='relu'))
+model.add(Dense(256, input_dim=feats_num, activation='relu'))
 model.add(Dense(2, activation='linear'))#,kernel_regularizer=regularizers.l2(0.001)))
 model.compile(optimizer='adam', loss=ncce, metrics=['accuracy'])
 

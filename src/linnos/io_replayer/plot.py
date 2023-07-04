@@ -29,7 +29,7 @@ def plot_raw_vs_best(figure_path, y_raw, y_cpu, y_gpu, extra_info=""):
     plt.ylabel('CDF')
     plt.title('CDF of Latency (Read-only IOs) \n' + extra_info)
     p70_lat = np.percentile(y_raw, 70)
-    plt.xlim(0, max(p70_lat * 3, 100)) # Hopefully the x axis limit can catch the tail
+    plt.xlim(0, max(p70_lat * 3, 30)) # Hopefully the x axis limit can catch the tail
     plt.ylim(0, 1) 
     plt.plot(x_1, y_1, label = x1_label, color="green")
     plt.plot(x_2, y_2, label = x2_label, color="red")
@@ -40,7 +40,7 @@ def plot_raw_vs_best(figure_path, y_raw, y_cpu, y_gpu, extra_info=""):
 
 baseline = open("1ssd_baseline.data")
 cpu = open("1ssd_cpu.data")
-gpu = open("1ssd_gpu.data")
+gpu = open("1ssd_failover.data")
 
 x1_label = "Linnos - disable"
 x2_label = "Linnos - enable - CPU"
