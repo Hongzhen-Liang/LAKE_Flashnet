@@ -32,7 +32,7 @@
 // #define FEAT_31
 // #define LEN_INPUT 31
 #define FEAT_40
-#define LEN_INPUT 40
+#define LEN_INPUT 34
 #define LEN_LAYER_0 256
 #define LEN_LAYER_0_HALF 128
 #define LEN_LAYER_1 2
@@ -76,7 +76,7 @@ static int run(void) {
 
     // For high-granularity_inference, with gran = 4
     // [hist_size_-4, hist_size_-3, hist_size_-2, hist_size_-1, IO_size_0, IO_size_1, IO_size_2, IO_size_3, hist_latency_-4, hist_latency_-3. hist_latency_-2, hist_latency_-1]
-    char input[LEN_INPUT] = {0,0,0, 0,0,0, 0,0,0, 0,0,0, 0,0,0, 0,0,0, 0,0,0, 0,0,0, 0,0,1,0, 0,0,0,9, 0,0,0,9, 0,0,0,9};
+    char input[LEN_INPUT] = {0,0,0, 0,0,0, 0,0,0, 0,0,0, 0,0,0, 0,0,0, 0,0,1,0, 0,0,0,9, 0,0,0,9, 0,0,0,9};
     
     u64 t_start, t_stop, step_start, elapsed;
     u64 count, tput;
@@ -95,7 +95,7 @@ static int run(void) {
 
     batch_size = 32;
     initialize_gpu(cubin_path, max_batch_size*4);
-    copy_weights(test_weights, &state);
+    copy_weights(test_weights, &state, LEN_INPUT);
     expand_input_n_times(input, batch_size);
 
     pr_warn("-----start-----\n");

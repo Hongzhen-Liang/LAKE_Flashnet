@@ -64,7 +64,10 @@ MODULE_PARM_DESC(model_size, "what model to use, 0 default, 1 +1, 2 +2");
   For NN+2, uncomment below //NN+2 (with no zeros)
 */
 // #include "weights_header/mix/w_Trace_sdb.h"
-#include "weights_header/mix/w_Trace_sda.h"
+#include "weights_header/mix/w_Trace_sdb1_1.h"
+#include "weights_header/mix/w_Trace_sdb1_2.h"
+// #include "weights_header/mix/w_Trace_sda_1.h"
+// #include "weights_header/mix/w_Trace_sda_4.h"
 // #include "weights_header/mix/w_Trace_sda2.h"
 // #include "weights_header/mix/w_Trace_nvme2n1.h"
 //#include "weights_header/mix+1/w_Trace_nvme0n1.h"
@@ -84,9 +87,16 @@ MODULE_PARM_DESC(model_size, "what model to use, 0 default, 1 +1, 2 +2");
 //#include "weights_header/azure+2/w_Trace_nvme1n1.h"
 //#include "weights_header/azure+2/w_Trace_nvme2n1.h"
 
-long *weights[][8] = {
+long *weights[][2][8] = {
 	//NN
-	{weight_0_T_sda, weight_1_T_sda, bias_0_sda, bias_1_sda ,0,0,0,0},
+	{	
+		// for granularity = 1
+		{weight_0_T_sdb1_1, weight_1_T_sdb1_1, bias_0_sdb1_1, bias_1_sdb1_1 ,0,0,0,0},
+		// for granularity = 4
+		{weight_0_T_sdb1_2, weight_1_T_sdb1_2, bias_0_sdb1_2, bias_1_sdb1_2 ,0,0,0,0},
+	},
+
+
 	// {weight_0_T_sdb, weight_1_T_sdb, bias_0_sdb, bias_1_sdb ,0,0,0,0},
 	// {weight_0_T_sda2, weight_1_T_sda2, bias_0_sda2, bias_1_sda2 ,0,0,0,0},
 	// {weight_0_T_nvme2n1, weight_1_T_nvme2n1, bias_0_nvme2n1, bias_1_nvme2n1 ,0,0,0,0},
@@ -107,8 +117,8 @@ long *weights[][8] = {
 };
 
 static const char *devices[] = {
-	"/dev/sda",
-	// "/dev/sdb",
+	// "/dev/sda",
+	"/dev/sdb",
 	// "/dev/sda2",
 	// "/dev/nvme2n1",
     //"/dev/vdb",
@@ -213,9 +223,10 @@ static int gpu_attach(void) {
 		window_size_hist[i] = 0;
 	if(model_size==0) {
 	 	// cpu_gpu_threshold = 8;   // Important! Temporary comment this to see the result of using GPU.
-		cpu_gpu_threshold = 4;
+		cpu_gpu_threshold = 1;
 		max_batch_size = 10;
-	 	window_size_ns = 5*_us;
+	 	// window_size_ns = 5*_us;
+		window_size_ns = 1000*_us;   // try a greater window_size_ns to include more IO request in a batch.
 		no_reject = false;
 	} else if (model_size == 1) {
 		window_size_ns = 40*_us;
@@ -236,13 +247,15 @@ static void gpu_detach(void) {
 	const char *devs;
 	int i;
 	for(devs = devices[0], i=0 ; devs != 0 ; devs = devices[++i]) {
-		multi_gpu_cuda_cleanup_dev(&gpu_weights[i], i);
+		multi_gpu_cuda_cleanup_dev(&gpu_weights[i][0], i);   // clean weights of low-gran
+		multi_gpu_cuda_cleanup_dev(&gpu_weights[i][1], i);   // clean weights of high-gran
 	}
 	
 	for (i=0;i<128;i++)
 		if (window_size_hist[i] != 0)
 			pr_warn("%d:\t%u\n", i, window_size_hist[i]);
 
+	pr_warn("Total trace num: %u\n", n_traces);
 	pr_warn("GPU was used %u times\n", n_used_gpu);
 	pr_warn("Batch skipped %u times\n", n_skipped);
 	// for (i=0;i<NUMBER_DEVICES;i++) {
@@ -251,17 +264,24 @@ static void gpu_detach(void) {
 	cuCtxDestroy(cuctx);
 }
 static void gpu_copy_weight(int idx) {
-	long **wts = weights[idx];
-	pr_warn("<LAKE trace> Copying weights of device idx %d\n", idx);
-	copy_weights(wts, &gpu_weights[idx]);
+	long **wts_low = weights[idx][0];
+	long **wts_high = weights[idx][1];
+	pr_warn("<LAKE trace> Copying weights of device idx high %d\n", idx);
 
-	first_weight_ptr_to_dev[idx] = wts[0];
+	// copy weights for high-granularity inference.
+	copy_weights(wts_low, &gpu_weights[idx][0], ONE_IO_LEN);
+	pr_warn("<LAKE trace> Copying weights of device idx low %d\n", idx);
+	// copy weights for granularity = 1
+	copy_weights(wts_high, &gpu_weights[idx][1], LEN_INPUT);	
+	pr_warn("<LAKE trace> Finish copying weights of device idx low %d\n", idx);
+
+	first_weight_ptr_to_dev[idx] = wts_low[0];
 }
 
 static int attach_to_queue(int idx) {
 	struct block_device *dev;
 	struct request_queue *q;
-	long **wts = weights[idx];
+	long **wts_low = weights[idx][0];
 
 	pr_warn("<LAKE trace> Attach to queue on %s\n", devices[idx]);
 	dev = blkdev_get_by_path(devices[idx], FMODE_READ|FMODE_WRITE, THIS_MODULE);
@@ -274,20 +294,21 @@ static int attach_to_queue(int idx) {
 	//more spaggheti, nice
 	if (is_gpu_inf) 
 		gpu_copy_weight(idx);
+	pr_warn("<LAKE trace> Finish GPU copy weight. \n");
 
-	pr_warn("<LAKE trace> Copying weigths of layer 1. \n");
-	q->weight_0_T = wts[0];
-	pr_warn("<LAKE trace> Copying weigths of layer 2. \n");
-	q->weight_1_T = wts[1];
-	pr_warn("<LAKE trace> Copying bias of layer 1. \n");
-	q->bias_0 = wts[2];
-	pr_warn("<LAKE trace> Copying bias of layer 2. \n");
-	q->bias_1 = wts[3];
 
-	q->weight_2_T = wts[4];
-	q->bias_2 = wts[5];
-	q->weight_3_T = wts[6];
-	q->bias_3 = wts[7];
+	// for Low granularity
+	q->weight_0_T = wts_low[0];
+	q->weight_1_T = wts_low[1];
+	q->bias_0 = wts_low[2];
+	q->bias_1 = wts_low[3];
+	pr_warn("<LAKE trace> Finish attach 1st, 2nd layer. \n");
+
+	q->weight_2_T= wts_low[4];
+	q->bias_2 = wts_low[5];
+	q->weight_3_T = wts_low[6];
+	q->bias_3 = wts_low[7];
+	pr_warn("<LAKE trace> Finish attach 3rd, 4th layer. \n");
 
 	q->predictor = fptr;
 	q->ml_enabled = true;

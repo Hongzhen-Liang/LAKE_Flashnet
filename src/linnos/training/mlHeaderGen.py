@@ -46,7 +46,7 @@ def generate_1d_var_T(v_name, v_type, digits, thres, input_path):
     print(v_literal)
 
 
-if len(sys.argv) != 5:
+if len(sys.argv) != 6:
     print('Illegal cmd format')
     exit(1)
 
@@ -60,16 +60,17 @@ output_folder = sys.argv[4]  # weights_header_1ssd
 if output_folder[-1] != '/':
     output_folder += '/'
 # print(output_folder)
+granularity = sys.argv[5]
 
 # workload = 'bingindex'
 # drive = 'nvme3'
 # iters = '40'
 
-file_list_w0 = glob.glob(input_folder+'*.weight_0.csv')
-file_list_w1 = glob.glob(input_folder+'*.weight_1.csv')
-file_list_b0 = glob.glob(input_folder+'*.bias_0.csv')
-file_list_b1 = glob.glob(input_folder+'*.bias_1.csv')
-# print(file_list_b1)
+file_list_w0 = glob.glob(input_folder+ '*' + granularity + '.csv.weight_0.csv')
+file_list_w1 = glob.glob(input_folder+ '*' + granularity + '.csv.weight_1.csv')
+file_list_b0 = glob.glob(input_folder+ '*' + granularity + '.csv.bias_0.csv')
+file_list_b1 = glob.glob(input_folder+ '*' + granularity + '.csv.bias_1.csv')
+print(file_list_b1)
 if len(file_list_w0) != 1 or len(file_list_w1) != 1 or len(file_list_b0) != 1 or len(file_list_b1) != 1:
     print('Illegal input')
     exit(1)
@@ -83,16 +84,16 @@ if not os.path.exists(output_folder):
     print('Illegal output')
     exit(1)
 
-sys.stdout = open(output_folder+'/w_'+ workload+"_"+drive+'.h', 'w')  # write the header file
+sys.stdout = open(output_folder+'/w_'+ workload+"_"+drive+"_"+granularity+'.h', 'w')  # write the header file
 
 print('\n/* '+workload+' */\n')
 from datetime import datetime
 print('/**\n *  updated on '+datetime.now().strftime('%m/%d/%Y %H:%M:%S')+'\n */\n')
-print('#ifndef __W_'+drive.upper()+'_H\n#define __W_'+drive.upper()+'_H\n')
-print('char name_'+drive+'[] = \"'+workload+'/'+drive+'\";\n')
+print('#ifndef __W_'+drive.upper()+'_'+granularity+'_H\n#define __W_'+drive.upper()+'_'+granularity+'_H\n')
+print('char name_'+drive+'_'+granularity+'[] = \"'+workload+'/'+drive+'\";\n')
 digits = 3
-generate_1d_var_T('weight_0_T_'+drive, 'long', digits, None, w0_path)
-generate_1d_var_T('weight_1_T_'+drive, 'long', digits, None, w1_path)
-generate_1d_var_T('bias_0_'+drive, 'long', digits, None, b0_path)
-generate_1d_var_T('bias_1_'+drive, 'long', digits*2, None, b1_path)
+generate_1d_var_T('weight_0_T_'+drive+'_'+granularity, 'long', digits, None, w0_path)
+generate_1d_var_T('weight_1_T_'+drive+'_'+granularity, 'long', digits, None, w1_path)
+generate_1d_var_T('bias_0_'+drive+'_'+granularity, 'long', digits, None, b0_path)
+generate_1d_var_T('bias_1_'+drive+'_'+granularity, 'long', digits*2, None, b1_path)
 print('#endif')

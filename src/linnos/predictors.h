@@ -21,13 +21,15 @@
 #define __LINNOS_PREDICTORS_H
 
 // For high-granularity_inference, with gran = 4
-// #define FEAT_31
+#define FEAT_31
 // #define LEN_INPUT 31
 #define FEAT_40
-#define LEN_INPUT 40
-#define ONE_IO_LEN 31
-#define GRANULARITY 4
+
+#define GRANULARITY 2
 #define HIST_SIZE 4
+
+#define LEN_INPUT 34 //four bits are used to represent hist_latency & 3 bits are used to represent each IO size.
+#define ONE_IO_LEN 31
 
 #define LEN_LAYER_0 256
 #define LEN_LAYER_M_1 256
@@ -50,11 +52,12 @@
 extern bool* gpu_results;
 extern u32* window_size_hist;
 extern u32 n_used_gpu;
+extern u32 n_traces;
 extern u32 n_skipped;
 extern u32 ios_on_device[NUMBER_DEVICES];
 bool batch_test(char *feat_vec, int n_vecs, long **weights);
 
-extern struct GPU_weights gpu_weights[NUMBER_DEVICES];
+extern struct GPU_weights gpu_weights[NUMBER_DEVICES][2];   // 2 means there are two set of weights: one for high-granularity inference, one for granularity = 1.
 #endif
 
 bool fake_prediction_model(char *feat_vec, int n_vecs, long **weights);
@@ -66,9 +69,9 @@ void gpu_predict_batch(char *__feat_vec, int n_vecs, long **weights);
 void gpu_predict_batch_plus_1(char *__feat_vec, int n_vecs, long **weights);
 void gpu_predict_batch_plus_2(char *__feat_vec, int n_vecs, long **weights);
 
-void multi_gpu_predict_batch(char *__feat_vec, int n_vecs, long **weights, int dev, int batch);
-void multi_gpu_predict_batch_plus_1(char *__feat_vec, int n_vecs, long **weights, int dev, int batch);
-void multi_gpu_predict_batch_plus_2(char *__feat_vec, int n_vecs, long **weights, int dev, int batch);
+void multi_gpu_predict_batch(char *__feat_vec, int n_vecs, long **weights_high, int dev, int batch);
+void multi_gpu_predict_batch_plus_1(char *__feat_vec, int n_vecs, long **weights_high, int dev, int batch);
+void multi_gpu_predict_batch_plus_2(char *__feat_vec, int n_vecs, long **weights_high, int dev, int batch);
 
 void predictors_mgpu_init(void);
 int gpu_get_prediction(int dev, int batch, int id);

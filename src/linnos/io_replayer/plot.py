@@ -27,9 +27,9 @@ def plot_raw_vs_best(figure_path, y_raw, y_cpu, y_gpu, extra_info=""):
     plt.figure(figsize=(7,3))
     plt.xlabel('Latency (us)')
     plt.ylabel('CDF')
-    plt.title('CDF of Latency (Read-only IOs) \n' + extra_info)
+    plt.title('CDF of Latency (' + worload + ' IOs) \n' + extra_info)
     p70_lat = np.percentile(y_raw, 70)
-    plt.xlim(0, max(p70_lat * 3, 30)) # Hopefully the x axis limit can catch the tail
+    plt.xlim(0, p70_lat * 3) # Hopefully the x axis limit can catch the tail
     plt.ylim(0, 1) 
     plt.plot(x_1, y_1, label = x1_label, color="green")
     plt.plot(x_2, y_2, label = x2_label, color="red")
@@ -40,11 +40,13 @@ def plot_raw_vs_best(figure_path, y_raw, y_cpu, y_gpu, extra_info=""):
 
 baseline = open("1ssd_baseline.data")
 cpu = open("1ssd_cpu.data")
-gpu = open("1ssd_failover.data")
+gpu = open("1ssd_gpu.data")
 
 x1_label = "Linnos - disable"
 x2_label = "Linnos - enable - CPU"
-x3_label = "Linnos - enable - GPU"
+x3_label = "Linnos - enable - GPU - High Granularity Inference"
+
+worload = "write"
 
 lineBase = baseline.readline()
 lineCPU = cpu.readline()
@@ -55,11 +57,26 @@ LCPU = []
 LGPU = []
  
 while (lineBase and lineCPU and lineGPU):
-    LB.append(int(lineBase.split(",")[1]))
-    LCPU.append(int(lineCPU.split(",")[1]))
-    LGPU.append(int(lineGPU.split(",")[1]))
+    if worload == "read":
+        if int(lineBase.split(",")[2]) == 1:
+            LB.append(int(lineBase.split(",")[1]))
+        if int(lineCPU.split(",")[2]) == 1:
+            LCPU.append(int(lineCPU.split(",")[1]))
+        if int(lineGPU.split(",")[2]) == 1:
+            LGPU.append(int(lineGPU.split(",")[1]))
+    elif worload == "write":
+        if int(lineBase.split(",")[2]) == 0:
+            LB.append(int(lineBase.split(",")[1]))
+        if int(lineCPU.split(",")[2]) == 0:
+            LCPU.append(int(lineCPU.split(",")[1]))
+        if int(lineGPU.split(",")[2]) == 0:
+            LGPU.append(int(lineGPU.split(",")[1]))
+    elif worload == "all":
+        LB.append(int(lineBase.split(",")[1]))
+        LCPU.append(int(lineCPU.split(",")[1]))
+        LGPU.append(int(lineGPU.split(",")[1]))
     lineBase = baseline.readline()
     lineCPU = cpu.readline()
     lineGPU = gpu.readline()
 
-plot_raw_vs_best("Baseline_CPU_GPU.png",LB,LCPU,LGPU,"[Lake power LinnOS]")
+plot_raw_vs_best("Baseline_CPU_GPU_" + worload + ".png",LB,LCPU,LGPU,"[Lake power LinnOS]")

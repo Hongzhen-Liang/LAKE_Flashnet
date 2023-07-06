@@ -61,7 +61,7 @@ static inline CUresult check_error(CUresult error, const char* error_str, int li
 	return error;
 }
 
-void copy_weights(long **weights, struct GPU_weights *state);
+void copy_weights(long **weights, struct GPU_weights *state, int input_dim);
 void initialize_gpu(const char* cubin_path, int max_batch_size);
 void gpu_cuda_cleanup(struct GPU_weights *state);
 

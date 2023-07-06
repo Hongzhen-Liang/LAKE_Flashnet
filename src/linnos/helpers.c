@@ -54,7 +54,14 @@ static void gpu_get_cufunc(const char* cubin, char* kname, CUfunction *func) {
 }
 
 //this is multi ssd ready
-void copy_weights(long **weights, struct GPU_weights *state) {
+void copy_weights(long **weights, struct GPU_weights *state, int input_dim) {
+    /*
+        copy weights from header file to GPU.
+        @weights:
+            weights specified in header.
+        @state:
+            weights in GPU.
+    */
     long *kbuf_weight_0_T_ent;
     long *kbuf_weight_1_T_ent;
     long *kbuf_weight_M_1;
@@ -65,7 +72,8 @@ void copy_weights(long **weights, struct GPU_weights *state) {
     long *kbuf_bias_M_2;
     
     // For high-granularity_inference, with gran = 4
-	check_error(cuMemAlloc((CUdeviceptr*) &state->weights[0], sizeof(long) * 256*LEN_INPUT), "cuMemAlloc ", __LINE__);
+    pr_warn("<LAKE trace> CUDA memory allocat begin \n");
+	check_error(cuMemAlloc((CUdeviceptr*) &state->weights[0], sizeof(long) * 256*input_dim), "cuMemAlloc ", __LINE__);
     check_error(cuMemAlloc((CUdeviceptr*) &state->weights[1], sizeof(long) * 256*2), "cuMemAlloc ", __LINE__);
     check_error(cuMemAlloc((CUdeviceptr*) &state->weights[2], sizeof(long) * 256), "cuMemAlloc ", __LINE__);
     check_error(cuMemAlloc((CUdeviceptr*) &state->weights[3], sizeof(long) * 2), "cuMemAlloc ", __LINE__);
@@ -78,8 +86,9 @@ void copy_weights(long **weights, struct GPU_weights *state) {
 
     //initialize variables
     // For high-granularity_inference, with gran = 4
-	kbuf_weight_0_T_ent = (long*) kava_alloc(256*LEN_INPUT*sizeof(long));
-    memcpy(kbuf_weight_0_T_ent, weights[0], 256*LEN_INPUT*sizeof(long));
+    pr_warn("<LAKE trace> Copy weights to share memory. \n");
+	kbuf_weight_0_T_ent = (long*) kava_alloc(256*input_dim*sizeof(long));
+    memcpy(kbuf_weight_0_T_ent, weights[0], 256*input_dim*sizeof(long));
     kbuf_bias_0_ent = (long*) kava_alloc(256*sizeof(long));
     memcpy(kbuf_bias_0_ent, weights[2], 256*sizeof(long));
 
@@ -89,7 +98,8 @@ void copy_weights(long **weights, struct GPU_weights *state) {
     memcpy(kbuf_bias_1_ent, weights[3], 2*sizeof(long));
 
     // For high-granularity_inference, with gran = 4
-    check_error(cuMemcpyHtoD((CUdeviceptr )state->weights[0], kbuf_weight_0_T_ent, sizeof(long) * 256*LEN_INPUT), "cuMemcpyHtoD", __LINE__);
+    pr_warn("<LAKE trace> Copy weights to GPU memory. \n");
+    check_error(cuMemcpyHtoD((CUdeviceptr )state->weights[0], kbuf_weight_0_T_ent, sizeof(long) * 256*input_dim), "cuMemcpyHtoD", __LINE__);
 	check_error(cuMemcpyHtoD((CUdeviceptr )state->weights[1], kbuf_weight_1_T_ent, sizeof(long) * 256*2), "cuMemcpyHtoD", __LINE__);
 	check_error(cuMemcpyHtoD((CUdeviceptr )state->weights[2], kbuf_bias_0_ent, sizeof(long) * 256), "cuMemcpyHtoD", __LINE__);
 	check_error(cuMemcpyHtoD((CUdeviceptr )state->weights[3], kbuf_bias_1_ent, sizeof(long) * 2), "cuMemcpyHtoD", __LINE__);
@@ -128,6 +138,8 @@ void copy_weights(long **weights, struct GPU_weights *state) {
         kava_free(kbuf_weight_M_2);
         kava_free(kbuf_bias_M_2);
     }
+
+    pr_warn("<LAKE trace> copy_weights() finish! \n");
 }
 
 void copy_results_from_gpu(u64 n_inputs) {
@@ -229,7 +241,7 @@ void multi_gpu_cuda_cleanup_dev(struct GPU_weights *state, int dev) {
         cuMemFree(multi_d_final_res_i[dev][batch]);
 
         kava_free(multi_inputs_to_gpu[dev][batch]);        
-        kava_free(raw_inputs_to_gpu[dev][batch]);        
+        kava_free(multi_inputs_to_gpu_gran_1[dev][batch]);        
         kava_free(multi_gpu_outputs[dev][batch]);
 
         cuStreamDestroy(cu_streams[dev][batch]);
@@ -263,10 +275,12 @@ void multi_initialize_gpu(const char* cubin_path, int max_batch_size, int ndev) 
 
             check_error(cuStreamCreate(&cu_streams[dev][batch], 0), "cuMemAlloc ", __LINE__);
 
-            raw_inputs_to_gpu[dev][batch] = kava_alloc(ONE_IO_LEN * max_batch_size * sizeof(long));
-            if (!raw_inputs_to_gpu[dev][batch]) 
-                pr_warn("error allocating raw_inputs_to_gpu:  %lu\n", ONE_IO_LEN * max_batch_size * sizeof(long));
+            // Memory for input granularity = 1: 31 features.
+            multi_inputs_to_gpu_gran_1[dev][batch] = kava_alloc(ONE_IO_LEN * max_batch_size * sizeof(long));
+            if (!multi_inputs_to_gpu_gran_1[dev][batch]) 
+                pr_warn("error allocating multi_inputs_to_gpu_gran_1:  %lu\n", ONE_IO_LEN * max_batch_size * sizeof(long));
 
+            // Memory for input granularity > 1. e.g. 40 features when granularity = 4.
             multi_inputs_to_gpu[dev][batch] = kava_alloc(LEN_INPUT * max_batch_size * sizeof(long));
             if (!multi_inputs_to_gpu[dev][batch]) 
                 pr_warn("error allocating inputs_to_gpu:  %lu\n", LEN_INPUT * max_batch_size * sizeof(long));
@@ -279,7 +293,12 @@ void multi_initialize_gpu(const char* cubin_path, int max_batch_size, int ndev) 
 }
 
 void multi_copy_inputs_to_gpu(u64 n_inputs, int dev, int batch_id) {
-    cuMemcpyHtoDAsync(multi_d_input_vec_i[dev][batch_id], multi_inputs_to_gpu[dev][batch_id], sizeof(long) * LEN_INPUT * n_inputs, cu_streams[dev][batch_id]);
+    // pr_warn("<LAKE trace> sizeof(long) = %lu \n", sizeof(long));
+    // pr_warn("<LAKE trace> vec_nums: %lu, size: sizeof(long) * LEN_INPUT * n_inputs = %lu, multi_inputs_to_gpu[dev][batch_id][39] = %li. \n", n_inputs, sizeof(long) * LEN_INPUT * n_inputs, multi_inputs_to_gpu[dev][batch_id][39]);
+    int res = cuMemcpyHtoDAsync(multi_d_input_vec_i[dev][batch_id], multi_inputs_to_gpu[dev][batch_id], sizeof(long) * LEN_INPUT * n_inputs, cu_streams[dev][batch_id]);
+    if (res != 0) {
+        pr_warn("Copy inputs to GPU failed. Return %d \n", res);
+    }
 }
 
 void multi_copy_results_from_gpu(u64 n_inputs, int dev, int batch_id) {

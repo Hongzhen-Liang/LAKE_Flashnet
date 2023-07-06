@@ -23,7 +23,11 @@
 #include "test_weights.h"
 // For high-granularity_inference, with gran = 4
 // #define LEN_INPUT 31
-#define LEN_INPUT 40
+#define GRANULARITY 2
+#define HIST_SIZE 4
+
+// #define LEN_INPUT (HIST_SIZE+GRANULARITY)*3+HIST_SIZE*4  //four bits are used to represent hist_latency & 3 bits are used to represent each IO size.
+#define LEN_INPUT 34
 #define LEN_LAYER_0 256
 #define LEN_LAYER_0_HALF 128
 #define LEN_LAYER_1 2
@@ -35,6 +39,27 @@ __global__ void prediction_mid_layer_batch(long *weight_0_T_ent, long *bias_0_en
     int stride = blockDim.x;
 	int input_ind = blockIdx.x*LEN_INPUT;     // locate the input blockId
 	int blockId = blockIdx.x;
+	// printf("(blockId = %d) the input_vec_i[39] = %li \n", input_vec_i[39]);
+	// int all_zero_before = 1;
+	// int all_zero_after = 1;
+	// for (int k = 0; k < 31; k++) {
+	// 	if (input_vec_i[input_ind + k] != 0){
+	// 		all_zero_before = 0;
+	// 	}
+	// }
+	// for (int k = 31; k < 40; k++) {
+	// 	if (input_vec_i[input_ind + k] != 0){
+	// 		all_zero_after = 0;
+	// 	}
+	// }
+	// if (blockIdx.x == 0){
+	// 	printf("when input_ind = %d, all_zero_before = %d, all_zero_after = %d \n", input_ind, all_zero_before, all_zero_after);
+	// 	if (all_zero_after == 0){
+	// 		printf("input_vec_i[input_ind + 39] == %d \n", input_vec_i[input_ind + 39]);
+	// 	}
+	// }
+
+	// printf("(blockId = %d) the weight_0_T_ent[256*40 - 1] * input_vec_i[input_ind + 39] = %li * %li.\n", blockId, weight_0_T_ent[threadId*LEN_INPUT + 39], input_vec_i[input_ind + 39]);
 	for (j = threadId, offset=threadId*LEN_INPUT; j < LEN_LAYER_0; j+=stride, offset+=LEN_INPUT*stride) {
 		int update_index = blockId*stride + j;
         mid_res_i[update_index] = 0;
@@ -138,7 +163,6 @@ __global__ void prediction_mid_layer_2_batch(long *weight_M_2, long *bias_M_2, l
 }
 
 __global__ void prediction_final_layer_batch(long *weight_1_T_ent, long *bias_1_ent, long *mid_res_i, long *dd_final_res_i) {
-	printf("<LAKE trace> [prediction_mid_layer_batch] prepare to predict - final layer. \n");
 	int index = blockIdx.x;
 	int threadId = threadIdx.x;
 	int dim = blockDim.x;

@@ -236,15 +236,23 @@ elif mode == 'direct':
     len_pending = int(sys.argv[2])   # = 3
     len_latency = int(sys.argv[3])   # = 4
     trace_path = sys.argv[4]  #mlData/TrainTraceOutput
-    temp_file_path = sys.argv[5]  #mlData/temp1
-    temp_file_rearrange_path = temp_file_path + '_rearrange'
-    output_path = sys.argv[6] #mlData/"mldrive${i}.csv"
-    device_index = sys.argv[7] #"$i"
+    temp_file_path = sys.argv[5] #mlData/temp1
     granularity = int(sys.argv[8])   # = 4
+    output_path = sys.argv[6] #mlData/"mldrive${i}_high_gran.csv"
+    device_index = sys.argv[7] #"$i"
 
-    generate_raw_vec(trace_path, temp_file_path, device_index)
-    rearrange_feats(granularity, temp_file_path, temp_file_rearrange_path)
-    generate_ml_vec(granularity, len_pending, len_latency, temp_file_rearrange_path, output_path)
+    temp_file_low_gran = temp_file_path + "_gran_1"
+    temp_file_high_gran = temp_file_path + "_gran_" + str(granularity)
+    output_path_low_gran = output_path + "_gran_1.csv"
+    output_path_high_gran = output_path + "_gran_" + str(granularity) + ".csv"
+
+    generate_raw_vec(trace_path, temp_file_low_gran, device_index)
+    # re-arrange the feature for high-granularity training.
+    if (granularity > 1):
+        rearrange_feats(granularity, temp_file_low_gran, temp_file_high_gran)
+        generate_ml_vec(granularity, len_pending, len_latency, temp_file_high_gran, output_path_high_gran)
+    # also parsing the feature for granularity = 1's training.
+    generate_ml_vec(1, len_pending, len_latency, temp_file_low_gran, output_path_low_gran)
 else:
     print('illegal mode code')
     exit(1)

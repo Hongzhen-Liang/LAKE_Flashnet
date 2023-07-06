@@ -31,7 +31,10 @@ custom_loss = 5.0
 train_data = pd.read_csv(train_input_path, dtype='float32',sep=',', header=None)
 
 # retrieve all the IO's latency out and determine the lat_latency
-latency_list = np.array(train_data)[:,feats_num].tolist() + np.array(train_data)[-1,feats_num + 1:].tolist()
+if granularity > 1:
+    latency_list = np.array(train_data)[:,feats_num].tolist() + np.array(train_data)[-1,feats_num + 1:].tolist()
+else:
+    latency_list = np.array(train_data)[:,feats_num].tolist()
 lat_threshold = np.percentile(latency_list, percentile_threshold)
 print("lat_threshold: ",lat_threshold)
 

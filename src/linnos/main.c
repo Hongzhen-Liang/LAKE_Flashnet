@@ -54,8 +54,10 @@ u64 get_tsns() {
 // For high-granularity_inference, with gran = 4
 // #define FEAT_31
 // #define LEN_INPUT 31
-#define FEAT_40
-#define LEN_INPUT 40
+// #define FEAT_40
+// #define LEN_INPUT 40
+#define FEAT_34
+#define LEN_INPUT 34
 #define LEN_LAYER_0 256
 #define LEN_LAYER_0_HALF 128
 #define LEN_LAYER_1 2
@@ -98,7 +100,7 @@ static int run_gpu(void) {
 
     // For high-granularity_inference, with gran = 4
     // [hist_size_-4, hist_size_-3, hist_size_-2, hist_size_-1, IO_size_0, IO_size_1, IO_size_2, IO_size_3, hist_latency_-4, hist_latency_-3. hist_latency_-2, hist_latency_-1]
-    char input[LEN_INPUT] = {0,0,0, 0,0,0, 0,0,0, 0,0,0, 0,0,0, 0,0,0, 0,0,0, 0,0,0, 0,0,1,0, 0,0,0,9, 0,0,0,9, 0,0,0,9};
+    char input[LEN_INPUT] = {0,0,0, 0,0,0, 0,0,0, 0,0,0, 0,0,0, 0,0,0, 0,0,1,0, 0,0,0,9, 0,0,0,9, 0,0,0,9};
     u64 t_start, t_stop, c_start, c_stop;
     u64* comp_run_times;
     u64* total_run_times;
@@ -108,7 +110,7 @@ static int run_gpu(void) {
     struct GPU_weights state;
 
     initialize_gpu(cubin_path, max_batch_size);
-    copy_weights(test_weights, &state);
+    copy_weights(test_weights, &state, LEN_INPUT);
 
     comp_run_times = (u64*) vmalloc(RUNS*sizeof(u64));
     total_run_times = (u64*) vmalloc(RUNS*sizeof(u64));
