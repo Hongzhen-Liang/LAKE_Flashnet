@@ -58,7 +58,7 @@ struct completion finalize_batch[NUMBER_DEVICES][MAX_DEV_BATCHES];
 u16 n_exited[NUMBER_DEVICES][MAX_DEV_BATCHES];
 u16 waiting[NUMBER_DEVICES][MAX_DEV_BATCHES];
 u64 window_start_ns[NUMBER_DEVICES][MAX_DEV_BATCHES];
-bool use_cpu_instead[NUMBER_DEVICES][MAX_DEV_BATCHES][128];    // hard code here: modify later.
+u16 use_gpu_instead[NUMBER_DEVICES][MAX_DEV_BATCHES][128];    // 0: use cpu. 1: use gpu with batch. 3: use gpu with high-gran-inference
 //0=idle, 1=id0 waiting, 2=running
 
 bool batch_closed[NUMBER_DEVICES][MAX_DEV_BATCHES];
@@ -106,13 +106,13 @@ int gpu_get_prediction(int dev, int batch, int id) {
 }
 
 //hack: weights are actually device pointers here
-void multi_gpu_predict_batch(char *__feat_vec, int n_vecs, long **weights_high, int dev, int batch) {
+void multi_gpu_predict_batch(char *__feat_vec, int n_vecs, long **weights, int dev, int batch) {
 	//do inference
 	void *args[] = {
-		&weights_high[0], &weights_high[2], &multi_d_input_vec_i[dev][batch], &multi_d_mid_res_i[dev][batch]
+		&weights[0], &weights[2], &multi_d_input_vec_i[dev][batch], &multi_d_mid_res_i[dev][batch]
 	};
 	void *args1[] = {
-		&weights_high[1], &weights_high[3], &multi_d_mid_res_i[dev][batch], &multi_d_final_res_i[dev][batch]
+		&weights[1], &weights[3], &multi_d_mid_res_i[dev][batch], &multi_d_final_res_i[dev][batch]
 	};
 
 
@@ -133,16 +133,16 @@ void multi_gpu_predict_batch(char *__feat_vec, int n_vecs, long **weights_high, 
 			"cuLaunchKernel", __LINE__);
 }
 
-void multi_gpu_predict_batch_plus_1(char *__feat_vec, int n_vecs, long **weights_high, int dev, int batch) {
+void multi_gpu_predict_batch_plus_1(char *__feat_vec, int n_vecs, long **weights, int dev, int batch) {
 	//do inference
 	void *args[] = {
-		&weights_high[0], &weights_high[2], &multi_d_input_vec_i[dev][batch], &multi_d_mid_res_i[dev][batch]
+		&weights[0], &weights[2], &multi_d_input_vec_i[dev][batch], &multi_d_mid_res_i[dev][batch]
 	};
 	void *args1[] = {
-		&weights_high[1], &weights_high[3], &multi_d_mid_res_1_i[dev][batch], &multi_d_final_res_i[dev][batch]
+		&weights[1], &weights[3], &multi_d_mid_res_1_i[dev][batch], &multi_d_final_res_i[dev][batch]
 	};
 	void *args2[] = {
-		&weights_high[4], &weights_high[5], &multi_d_mid_res_i[dev][batch], &multi_d_mid_res_1_i[dev][batch]
+		&weights[4], &weights[5], &multi_d_mid_res_i[dev][batch], &multi_d_mid_res_1_i[dev][batch]
 	};
 
     check_error(cuLaunchKernel(batch_linnos_mid_layer_kernel, 
@@ -169,21 +169,21 @@ void multi_gpu_predict_batch_plus_1(char *__feat_vec, int n_vecs, long **weights
 			"cuLaunchKernel", __LINE__);
 }
 
-void multi_gpu_predict_batch_plus_2(char *__feat_vec, int n_vecs, long **weights_high, int dev, int batch) {
+void multi_gpu_predict_batch_plus_2(char *__feat_vec, int n_vecs, long **weights, int dev, int batch) {
 	//do inference
 	void *args[] = {
-		&weights_high[0], &weights_high[2], &multi_d_input_vec_i[dev][batch], &multi_d_mid_res_i[dev][batch]
+		&weights[0], &weights[2], &multi_d_input_vec_i[dev][batch], &multi_d_mid_res_i[dev][batch]
 	};
 	void *args1[] = {
-		&weights_high[1], &weights_high[3], &multi_d_mid_res_2_i[dev][batch], &multi_d_final_res_i[dev][batch]
+		&weights[1], &weights[3], &multi_d_mid_res_2_i[dev][batch], &multi_d_final_res_i[dev][batch]
 	};
 
 	void *args2[] = {
-		&weights_high[4], &weights_high[5], &multi_d_mid_res_i[dev][batch], &multi_d_mid_res_1_i[dev][batch]
+		&weights[4], &weights[5], &multi_d_mid_res_i[dev][batch], &multi_d_mid_res_1_i[dev][batch]
 	};
 
 	void *args3[] = {
-		&weights_high[6], &weights_high[7], &multi_d_mid_res_1_i[dev][batch], &multi_d_mid_res_2_i[dev][batch]
+		&weights[6], &weights[7], &multi_d_mid_res_1_i[dev][batch], &multi_d_mid_res_2_i[dev][batch]
 	};
 
     check_error(cuLaunchKernel(batch_linnos_mid_layer_kernel, 
@@ -227,39 +227,50 @@ int re_arrange_features(int n_vecs, int dev_index, int batch_index) {
 			[hist_size_1, hist_size_2, hist_size_3, hist_size_4, IO_size_i, hist_latency_1, hist_latency_2, hist_latency_3, hist_latency_4]
 	*/
 	int group_id = 0;
+	int full_group_num = n_vecs / GRANULARITY;
 	// 1. for the vectors that can form full groups
-	for (int i = 0; i < (n_vecs / GRANULARITY) * GRANULARITY; i ++){
-		if ((i + 1) % GRANULARITY == 0) {     // we use the history size and latency of the last IO request in a same granularity group.
-			// 1. append the history IO size.
-			for (int j = 0; j < HIST_SIZE * 3; j++) {    
-				multi_inputs_to_gpu[dev_index][batch_index][group_id*LEN_INPUT+j] = multi_inputs_to_gpu_gran_1[dev_index][batch_index][i*ONE_IO_LEN+j];
+	if (full_group_num > 0) {
+		for (int i = 0; i < (n_vecs / GRANULARITY) * GRANULARITY; i ++){
+			if ((i + 1) % GRANULARITY == 0) {     // we use the history size and latency of the last IO request in a same granularity group.
+				// 1. append the history IO size.
+				for (int j = 0; j < HIST_SIZE * 3; j++) {    
+					multi_inputs_to_gpu[dev_index][batch_index][group_id*LEN_INPUT+j] = multi_inputs_to_gpu_gran_1[dev_index][batch_index][i*ONE_IO_LEN+j];
+				}
+				// 2. append the current IO size.
+				for (int j = 0; j < 3; j++){
+					multi_inputs_to_gpu[dev_index][batch_index][group_id*LEN_INPUT+HIST_SIZE*3+(GRANULARITY-1)*3+j] = multi_inputs_to_gpu_gran_1[dev_index][batch_index][i*ONE_IO_LEN+HIST_SIZE*3+j];
+				}
+				// 3. append the history latency.
+				for (int j = 0; j < HIST_SIZE * 4; j++){    
+					multi_inputs_to_gpu[dev_index][batch_index][group_id*LEN_INPUT+HIST_SIZE*3+GRANULARITY*3+j] = multi_inputs_to_gpu_gran_1[dev_index][batch_index][i*ONE_IO_LEN+HIST_SIZE*3+3+j];
+					// if (group_id*LEN_INPUT+HIST_SIZE*3+GRANULARITY*3+j == 39) {
+					// 	pr_warn("multi_inputs_to_gpu[dev_index][batch_index][39] = %li, multi_inputs_to_gpu_gran_1[dev_index][batch_index][30] = %li \n", multi_inputs_to_gpu[dev_index][batch_index][39], multi_inputs_to_gpu_gran_1[dev_index][batch_index][30]);
+					// }
+				}
+				group_id += 1;
 			}
-			// 2. append the current IO size.
-			for (int j = 0; j < 3; j++){
-				multi_inputs_to_gpu[dev_index][batch_index][group_id*LEN_INPUT+HIST_SIZE*3+(GRANULARITY-1)*3+j] = multi_inputs_to_gpu_gran_1[dev_index][batch_index][i*ONE_IO_LEN+HIST_SIZE*3+j];
+			else{
+				// append the current IO size.
+				for (int j = 0; j < 3; j++){
+					multi_inputs_to_gpu[dev_index][batch_index][group_id*LEN_INPUT+HIST_SIZE*3+i*3+j] = multi_inputs_to_gpu_gran_1[dev_index][batch_index][i*ONE_IO_LEN+HIST_SIZE*3+j];
+				}
 			}
-			// 3. append the history latency.
-			for (int j = 0; j < HIST_SIZE * 4; j++){    
-				multi_inputs_to_gpu[dev_index][batch_index][group_id*LEN_INPUT+HIST_SIZE*3+GRANULARITY*3+j] = multi_inputs_to_gpu_gran_1[dev_index][batch_index][i*ONE_IO_LEN+HIST_SIZE*3+3+j];
-				// if (group_id*LEN_INPUT+HIST_SIZE*3+GRANULARITY*3+j == 39) {
-				// 	pr_warn("multi_inputs_to_gpu[dev_index][batch_index][39] = %li, multi_inputs_to_gpu_gran_1[dev_index][batch_index][30] = %li \n", multi_inputs_to_gpu[dev_index][batch_index][39], multi_inputs_to_gpu_gran_1[dev_index][batch_index][30]);
-				// }
-			}
-			group_id += 1;
 		}
-		else{
-			// append the current IO size.
-			for (int j = 0; j < 3; j++){
-				multi_inputs_to_gpu[dev_index][batch_index][group_id*LEN_INPUT+HIST_SIZE*3+i*3+j] = multi_inputs_to_gpu_gran_1[dev_index][batch_index][i*ONE_IO_LEN+HIST_SIZE*3+j];
+	} else {    // 2. For the situation that cannot form at least one full group
+		for (int i = 0; i < n_vecs; i++) {
+			for (int j = 0; j < ONE_IO_LEN; j++) {
+				multi_inputs_to_gpu[dev_index][batch_index][i*LEN_INPUT+j] = multi_inputs_to_gpu_gran_1[dev_index][batch_index][i*ONE_IO_LEN+j];
+			}
+			for (int j = ONE_IO_LEN; j < LEN_INPUT; j++) {
+				multi_inputs_to_gpu[dev_index][batch_index][i*LEN_INPUT+j] = 0;
 			}
 		}
 	}
-	// pr_warn("<LAKE trace> multi_inputs_to_gpu[dev_index][batch_index][39] = %li. \n", multi_inputs_to_gpu[dev_index][batch_index][39]);
-	return group_id;	
+	return full_group_num;	
 }
 
 
-void do_gpu_inference(int vec_nums, long **weights_high, int dev, int batch_id) {
+void do_gpu_inference(int vec_nums, long **weights, int dev, int batch_id) {
 	/*
 		@n_vecs: number of input vectors.
 		@weights: weights and bias of model.
@@ -267,19 +278,19 @@ void do_gpu_inference(int vec_nums, long **weights_high, int dev, int batch_id) 
 		@batch_id: id index.
 	*/
 	multi_copy_inputs_to_gpu(vec_nums, dev, batch_id);
-	multi_gpu_predict_batch(0, vec_nums, weights_high, dev, batch_id);
+	multi_gpu_predict_batch(0, vec_nums, weights, dev, batch_id);
 	multi_copy_results_from_gpu(vec_nums, dev, batch_id);
 }
 
-void do_gpu_inference_plus_one(int vec_nums, long **weights_high, int dev, int batch_id) {
+void do_gpu_inference_plus_one(int vec_nums, long **weights, int dev, int batch_id) {
 	multi_copy_inputs_to_gpu(vec_nums, dev, batch_id);
-	multi_gpu_predict_batch_plus_1(0, vec_nums, weights_high, dev, batch_id);
+	multi_gpu_predict_batch_plus_1(0, vec_nums, weights, dev, batch_id);
 	multi_copy_results_from_gpu(vec_nums, dev, batch_id);
 }
 
-void do_gpu_inference_plus_two(int vec_nums, long **weights_high, int dev, int batch_id) {
+void do_gpu_inference_plus_two(int vec_nums, long **weights, int dev, int batch_id) {
 	multi_copy_inputs_to_gpu(vec_nums, dev, batch_id);
-	multi_gpu_predict_batch_plus_2(0, vec_nums, weights_high, dev, batch_id);
+	multi_gpu_predict_batch_plus_2(0, vec_nums, weights, dev, batch_id);
 	multi_copy_results_from_gpu(vec_nums, dev, batch_id);
 }
 
@@ -293,7 +304,8 @@ bool gpu_batch_entry(char *feat_vec, int n_vecs, long **weights) {
 	// pr_warn("<LAKE trace> [gpu_batch_entry()] Prepare to do gpu inference. \n");
 	u16 my_id;
 	u16 my_batch;
-	bool my_prediction, use_cpu, skip;
+	bool my_prediction, skip;
+	u16 use_gpu;    // 0: use cpu. 1: use gpu with batch. 3: use gpu with high-gran-inference
 	s64 my_arrival;
 	u32 i, this_dev=99;
 	unsigned long irqflags, err;
@@ -301,6 +313,8 @@ bool gpu_batch_entry(char *feat_vec, int n_vecs, long **weights) {
 	bool is_last = false;
 	bool inf_fast = false;
 	s64 ia_avg = 0;
+	int full_group_num;
+	s64 timer;
 
 	int retry_num = 0;
 
@@ -358,14 +372,14 @@ enter_again:
 	//pr_warn("avg %lld.  %lld  <  %lld  %d skip\n", ia_avg, cpu_times[model_size], ia_avg*i, skip);
 	skip = cpu_times[model_size] < ia_avg * i;
 	skip |= (window_size_ns <= WINDOW_THRESHOLD);
+	skip = false;
 
-	// Important: Temporary comments this to see the result of GPU inference.
-	// if(skip) {
-	// 	spin_unlock_irqrestore(&batch_entry[this_dev], irqflags);
-	// 	n_skipped++;
-	// 	my_prediction = cpu_prediction_model(feat_vec, n_vecs, weights);
-	// 	return no_reject ? false : my_prediction;
-	// }
+	if(skip) {
+		spin_unlock_irqrestore(&batch_entry[this_dev], irqflags);
+		n_skipped++;
+		my_prediction = cpu_prediction_model_plus_1(feat_vec, n_vecs, weights);
+		return no_reject ? false : my_prediction;
+	}
 
 	//we can. would we close this batch?
 	dif = my_arrival - first_arrival[this_dev][my_batch];
@@ -389,7 +403,7 @@ enter_again:
 		//pr_warn("id 0 reiniting batch %d\n", my_batch);
 		reinit_completion(&finalize_batch[this_dev][my_batch]);
 		reinit_completion(&batch_completed[this_dev][my_batch]);
-		use_cpu = true;
+		use_gpu = 0;
 		n_exited[this_dev][my_batch] = 0;
 		first_arrival[this_dev][my_batch] = ktime_get_ns();
 	}
@@ -409,59 +423,74 @@ last_req_close:
 		//pr_warn(">> closing batch %d size %d\n", my_batch, waiting[this_dev][my_batch]);
 		//lonely request :(
 		if(waiting[this_dev][my_batch] <= 1) {
-			use_cpu = true;
+			use_gpu = 0;
 			goto reset_this_batch;
 		}
 		//not big enough for gpu
 		else if(waiting[this_dev][my_batch] < cpu_gpu_threshold) {
 			for (int id = 0; id < waiting[this_dev][my_batch]; id++){
-				use_cpu_instead[this_dev][my_batch][id] = true;
+				use_gpu_instead[this_dev][my_batch][id] = 0;
 			}
-			use_cpu = true;
+			use_gpu = 0;
 		}
 		//use the gpu
 		else {
-			// Multiple IO request to be handled together.
-			// if (waiting[this_dev][my_batch] > GRANULARITY) {
-			// 	pr_warn("<LAKE trace> Use GPU to calcualate %d vectors!\n", waiting[this_dev][my_batch]);
-			// }
-			// pr_warn("<LAKE trace> Use GPU to calcualate\n");
 			n_used_gpu++;
-			pr_warn("[n_traces = %d, n_used_gpu = %d], num_vecs = %d \n", n_traces, n_used_gpu, waiting[this_dev][my_batch]);
-			//my_prediction = false; //XXX
 			// re-arrange the input features to be align with high-granularity infenrece.
-			int full_group_num = re_arrange_features(waiting[this_dev][my_batch], this_dev, my_batch);
-			for (int id = 0; id < waiting[this_dev][my_batch]; id++){
-				if (id < full_group_num * GRANULARITY) {
-					use_cpu_instead[this_dev][my_batch][id] = false;
-				} else {
-					use_cpu_instead[this_dev][my_batch][id] = true;
+			// timer = ktime_get_ns();
+			full_group_num = re_arrange_features(waiting[this_dev][my_batch], this_dev, my_batch);   // possible very time consuming.
+			pr_warn("[n_traces = %d, n_used_gpu = %d], num_vecs = %d, group to: %d \n", n_traces, n_used_gpu, waiting[this_dev][my_batch], full_group_num);
+			// pr_warn("<LAKE trace> re_arrange_features use %lu ns \n", ktime_get_ns() - timer);
+			if (full_group_num > 0){
+				// high-gran inference can be used.
+				for (int id = 0; id < waiting[this_dev][my_batch]; id++){
+					if (id < full_group_num * GRANULARITY) {
+						use_gpu_instead[this_dev][my_batch][id] = 2;
+					} else {
+						use_gpu_instead[this_dev][my_batch][id] = 0;
+					}
 				}
-			}
-			if (my_id < full_group_num * GRANULARITY) {
-				use_cpu= false;
-			} else {
-				use_cpu = true;
-			}
-			// pr_warn("<LAKE trace> %d vectors are re-arranged, with full-group = %d. \n", waiting[this_dev][my_batch], full_group_num);
-			// pr_warn("<LAKE trace> The remaining %d vectors, which cannot form a full-gran group, will be computed by CPU. \n", waiting[this_dev][my_batch] - full_group_num * GRANULARITY);
+				if (my_id < full_group_num * GRANULARITY) {
+					use_gpu = 2;
+				} else {
+					use_gpu = 0;
+				}
+				// waiting[this_dev][my_batch] means number of vectors to be predicted in a once.
+				if (model_size == 0) {
+					do_gpu_inference(full_group_num, gpu_weights[this_dev][1].weights, this_dev, my_batch); 
+				} 
+				else if (model_size == 1) {
+					// pr_warn("<LAKE trace> GPU with model_size == 1\n");
+					do_gpu_inference_plus_one(full_group_num, gpu_weights[this_dev][1].weights, this_dev, my_batch); 
+				}
+				else {
+					do_gpu_inference_plus_two(full_group_num, gpu_weights[this_dev][1].weights, this_dev, my_batch); 
+				}
 
-			// waiting[this_dev][my_batch] means number of vectors to be predicted in a once.
-			if (model_size == 0) {
-				do_gpu_inference(full_group_num, gpu_weights[this_dev][1].weights, this_dev, my_batch); 
-			} 
-			else if (model_size == 1) {
-				do_gpu_inference_plus_one(full_group_num, gpu_weights[this_dev][1].weights, this_dev, my_batch); 
+				if (use_gpu == 2) {
+					my_prediction = gpu_get_prediction(this_dev, my_batch, my_id / GRANULARITY);
+				} 
 			}
 			else {
-				do_gpu_inference_plus_two(full_group_num, gpu_weights[this_dev][1].weights, this_dev, my_batch); 
-			}
+				// cannot used high-gran inference.
+				for (int id = 0; id < waiting[this_dev][my_batch]; id++){
+					use_gpu_instead[this_dev][my_batch][id] = 1;
+				}
+				use_gpu = 1;
 
-			// judge whether the result is calculated using GPU.
-			if (!use_cpu) {
-				my_prediction = gpu_get_prediction(this_dev, my_batch, my_id / GRANULARITY);
-				// pr_warn("<LAKE_trace> (id = %d) get the prediction result by gpu.\n", my_id);
-			} 
+				if (model_size == 0) {
+					do_gpu_inference(waiting[this_dev][my_batch], gpu_weights[this_dev][0].weights, this_dev, my_batch); 
+				} 
+				else if (model_size == 1) {
+					do_gpu_inference_plus_one(waiting[this_dev][my_batch], gpu_weights[this_dev][0].weights, this_dev, my_batch); 
+				}
+				else {
+					do_gpu_inference_plus_two(waiting[this_dev][my_batch], gpu_weights[this_dev][0].weights, this_dev, my_batch); 
+				}
+
+				// judge whether the result is calculated using GPU.
+				my_prediction = gpu_get_prediction(this_dev, my_batch, my_id);
+			}
 		}
 
 		//let everyone go now
@@ -473,21 +502,12 @@ last_req_close:
 		//pr_warn(" last %d: waiting for everyone to quit\n", my_batch);
 		//wait_for_completion(&finalize_batch[this_dev][my_batch]);
 		err = wait_for_completion_timeout(&batch_completed[this_dev][my_batch], usecs_to_jiffies((window_size_ns*10)/1000));
-		if (err == 0) {
-			//pr_warn("!!!!!!!!!!!!!!!!!!!!!!!!!!! LAST WAITED FOR TOO LONG\n");
-		}
 		
 		//pr_warn(" last %d: done \n", my_batch);
 reset_this_batch:
-		if (use_cpu){
-			my_prediction = cpu_prediction_model(feat_vec, n_vecs, weights);
-			// if (waiting[this_dev][my_batch] >= cpu_gpu_threshold) {
-				// pr_warn("<LAKE_trace> (id = %d) get the prediction result by CPU...\n", my_id);
-			// }
+		if (use_gpu == 0){
+			my_prediction = cpu_prediction_model_plus_1(feat_vec, n_vecs, weights);
 		}
-		// if (waiting[this_dev][my_batch] >= cpu_gpu_threshold) {
-		// 	pr_warn("<LAKE_trace> (id = %d) reset the batch and complete All.\n", my_id);
-		// }
 		//reset
 		waiting[this_dev][my_batch] = 0;
 		batch_closed[this_dev][my_batch] = false;
@@ -530,12 +550,11 @@ reset_this_batch:
 		//pr_warn("!!!!!!!!!!!!!!!!!!!!!!!! THIS SHOULDNT HAVE HAPPENED  !! %d id %d\n", my_batch, my_id);
 	}
 
-	use_cpu = use_cpu_instead[this_dev][my_batch][my_id];
-	if (!use_cpu) {
+	use_gpu = use_gpu_instead[this_dev][my_batch][my_id];
+	if (use_gpu == 2) {
 		my_prediction = gpu_get_prediction(this_dev, my_batch, my_id / GRANULARITY);
-		// if (waiting[this_dev][my_batch] >= cpu_gpu_threshold) {
-		// 	pr_warn("<LAKE_trace> (id = %d) get the prediction result by gpu.\n", my_id);
-		// }
+	}else if (use_gpu == 1) {
+		my_prediction = gpu_get_prediction(this_dev, my_batch, my_id);
 	}
 
 	//spin_lock_irqsave(&per_batch_lock[this_dev][my_batch], irqflags);
@@ -548,11 +567,8 @@ reset_this_batch:
 	}
 	//spin_unlock_irqrestore(&per_batch_lock[this_dev][my_batch], irqflags);
 
-	if (use_cpu){
-		my_prediction = cpu_prediction_model(feat_vec, n_vecs, weights);
-		// if (waiting[this_dev][my_batch] >= cpu_gpu_threshold) {
-		// 	pr_warn("<LAKE_trace> (id = %d) get the prediction result by CPU. \n", my_id);
-		// }
+	if (use_gpu == 0){
+		my_prediction = cpu_prediction_model_plus_1(feat_vec, n_vecs, weights);
 	}
 			
 	return no_reject ? false : my_prediction;
@@ -771,6 +787,8 @@ bool cpu_prediction_model(char *feat_vec, int n_vecs, long **weights) {
 }
 
 bool cpu_prediction_model_plus_1(char *feat_vec, int n_vecs, long **weights) {
+	s64 timer = ktime_get_ns();
+	// pr_warn("<LAKE trace> CPU is used. \n");
 	long input_vec_i[LEN_INPUT], mid_res_i[LEN_LAYER_0], mid_res_m_1[LEN_LAYER_M_1], final_res_i[LEN_LAYER_1];
 	long *weight_0_T_ent, * bias_0_ent, *weight_1_T_ent, * bias_1_ent, *weight_M_1, *bias_M_1; 
 	int i, j, k, offset;
@@ -876,6 +894,12 @@ bool cpu_prediction_model_plus_1(char *feat_vec, int n_vecs, long **weights) {
     //return (final_res_i[0]>=final_res_i[1])? false: true;
 
 	end = (final_res_i[0]>=final_res_i[1])? false: true;
+
+	bool result = no_reject ? false : end;
+	// pr_warn("<LAKE trace> cpu prediction finish, used %li ns. \n", ktime_get_ns() - timer);
+	if (result) {
+		pr_warn("<LAKE trace> reject the IO \n");
+	}
 	return no_reject ? false : end; 
 }
 

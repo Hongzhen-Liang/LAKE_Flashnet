@@ -21,8 +21,6 @@
 #include <stdio.h>
 #include <chrono>
 #include "test_weights.h"
-// For high-granularity_inference, with gran = 4
-// #define LEN_INPUT 31
 #define GRANULARITY 2
 #define HIST_SIZE 4
 
@@ -39,27 +37,6 @@ __global__ void prediction_mid_layer_batch(long *weight_0_T_ent, long *bias_0_en
     int stride = blockDim.x;
 	int input_ind = blockIdx.x*LEN_INPUT;     // locate the input blockId
 	int blockId = blockIdx.x;
-	// printf("(blockId = %d) the input_vec_i[39] = %li \n", input_vec_i[39]);
-	// int all_zero_before = 1;
-	// int all_zero_after = 1;
-	// for (int k = 0; k < 31; k++) {
-	// 	if (input_vec_i[input_ind + k] != 0){
-	// 		all_zero_before = 0;
-	// 	}
-	// }
-	// for (int k = 31; k < 40; k++) {
-	// 	if (input_vec_i[input_ind + k] != 0){
-	// 		all_zero_after = 0;
-	// 	}
-	// }
-	// if (blockIdx.x == 0){
-	// 	printf("when input_ind = %d, all_zero_before = %d, all_zero_after = %d \n", input_ind, all_zero_before, all_zero_after);
-	// 	if (all_zero_after == 0){
-	// 		printf("input_vec_i[input_ind + 39] == %d \n", input_vec_i[input_ind + 39]);
-	// 	}
-	// }
-
-	// printf("(blockId = %d) the weight_0_T_ent[256*40 - 1] * input_vec_i[input_ind + 39] = %li * %li.\n", blockId, weight_0_T_ent[threadId*LEN_INPUT + 39], input_vec_i[input_ind + 39]);
 	for (j = threadId, offset=threadId*LEN_INPUT; j < LEN_LAYER_0; j+=stride, offset+=LEN_INPUT*stride) {
 		int update_index = blockId*stride + j;
         mid_res_i[update_index] = 0;

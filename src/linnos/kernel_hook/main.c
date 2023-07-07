@@ -44,7 +44,7 @@ static char *cubin_path = "linnos.cubin";
 module_param(cubin_path, charp, 0444);
 MODULE_PARM_DESC(cubin_path, "The path to linnos.cubin in case you're using gpu predictor");
 
-int model_size = 0;
+int model_size = 1;  
 module_param(model_size, int, 0444);
 MODULE_PARM_DESC(model_size, "what model to use, 0 default, 1 +1, 2 +2");
 
@@ -64,8 +64,15 @@ MODULE_PARM_DESC(model_size, "what model to use, 0 default, 1 +1, 2 +2");
   For NN+2, uncomment below //NN+2 (with no zeros)
 */
 // #include "weights_header/mix/w_Trace_sdb.h"
-#include "weights_header/mix/w_Trace_sdb1_1.h"
-#include "weights_header/mix/w_Trace_sdb1_2.h"
+#include "weights_header/mix/w_Trace_nvme0n1_1.h"
+#include "weights_header/mix/w_Trace_nvme0n1_2.h"
+
+// #include "weights_header/mix/w_Trace_sda_1.h"
+// #include "weights_header/mix/w_Trace_sda_2.h"
+// #include "weights_header/mix/w_Trace_nvme0n1_3.h"
+// #include "weights_header/mix/w_Trace_nvme0n1_4.h"
+// #include "weights_header/mix/w_Trace_nvme0n1_6.h"
+// #include "weights_header/mix/w_Trace_nvme0n1_8.h"
 // #include "weights_header/mix/w_Trace_sda_1.h"
 // #include "weights_header/mix/w_Trace_sda_4.h"
 // #include "weights_header/mix/w_Trace_sda2.h"
@@ -89,19 +96,32 @@ MODULE_PARM_DESC(model_size, "what model to use, 0 default, 1 +1, 2 +2");
 
 long *weights[][2][8] = {
 	//NN
-	{	
-		// for granularity = 1
-		{weight_0_T_sdb1_1, weight_1_T_sdb1_1, bias_0_sdb1_1, bias_1_sdb1_1 ,0,0,0,0},
-		// for granularity = 4
-		{weight_0_T_sdb1_2, weight_1_T_sdb1_2, bias_0_sdb1_2, bias_1_sdb1_2 ,0,0,0,0},
-	},
-
+	// {	
+	// 	// for granularity = 1
+	// 	{weight_0_T_nvme0n1_1, weight_1_T_nvme0n1_1, bias_0_nvme0n1_1, bias_1_nvme0n1_1 ,0,0,0,0},
+	// 	// for granularity = 2
+	// 	{weight_0_T_nvme0n1_2, weight_1_T_nvme0n1_2, bias_0_nvme0n1_2, bias_1_nvme0n1_2 ,0,0,0,0},
+	// },
 
 	// {weight_0_T_sdb, weight_1_T_sdb, bias_0_sdb, bias_1_sdb ,0,0,0,0},
 	// {weight_0_T_sda2, weight_1_T_sda2, bias_0_sda2, bias_1_sda2 ,0,0,0,0},
 	// {weight_0_T_nvme2n1, weight_1_T_nvme2n1, bias_0_nvme2n1, bias_1_nvme2n1 ,0,0,0,0},
 
 	// NN+1
+	// device[0] = nvme0n1
+	{	
+		// for granularity = 1
+		{weight_0_T_nvme0n1_1, weight_2_T_nvme0n1_1, bias_0_nvme0n1_1, bias_2_nvme0n1_1, weight_1_T_nvme0n1_1, bias_1_nvme0n1_1, 0,0},
+		// for granularity = 2
+		{weight_0_T_nvme0n1_2, weight_2_T_nvme0n1_2, bias_0_nvme0n1_2, bias_2_nvme0n1_2, weight_1_T_nvme0n1_2, bias_1_nvme0n1_2, 0,0},
+	},
+	// // device[1] = sda
+	// {	
+	// 	// for granularity = 1
+	// 	{weight_0_T_sda_1, weight_2_T_sda_1, bias_0_sda_1, bias_2_sda_1, weight_1_T_sda_1, bias_1_sda_1, 0,0},
+	// 	// for granularity = 2
+	// 	{weight_0_T_sda_2, weight_2_T_sda_2, bias_0_sda_2, bias_2_sda_2, weight_1_T_sda_2, bias_1_sda_2, 0,0},
+	// },
 	//{weight_0_T_nvme0n1, weight_2_T_nvme0n1, bias_0_nvme0n1, bias_2_nvme0n1, weight_1_T_nvme0n1, bias_1_nvme0n1 ,0,0},
 	//{weight_0_T_nvme1n1, weight_2_T_nvme1n1, bias_0_nvme1n1, bias_2_nvme1n1, weight_1_T_nvme1n1, bias_1_nvme1n1 ,0,0},
 	//{weight_0_T_nvme2n1, weight_2_T_nvme2n1, bias_0_nvme2n1, bias_2_nvme2n1, weight_1_T_nvme2n1, bias_1_nvme2n1 ,0,0},
@@ -118,7 +138,9 @@ long *weights[][2][8] = {
 
 static const char *devices[] = {
 	// "/dev/sda",
-	"/dev/sdb",
+	// "/dev/sdb",
+	"/dev/nvme0n1",
+	// "/dev/sda",
 	// "/dev/sda2",
 	// "/dev/nvme2n1",
     //"/dev/vdb",
@@ -222,16 +244,15 @@ static int gpu_attach(void) {
 	for (i=0;i<256;i++) 
 		window_size_hist[i] = 0;
 	if(model_size==0) {
-	 	// cpu_gpu_threshold = 8;   // Important! Temporary comment this to see the result of using GPU.
-		cpu_gpu_threshold = 1;
+	 	cpu_gpu_threshold = 8;  
 		max_batch_size = 10;
-	 	// window_size_ns = 5*_us;
-		window_size_ns = 1000*_us;   // try a greater window_size_ns to include more IO request in a batch.
+		window_size_ns = 5*_us;   
 		no_reject = false;
 	} else if (model_size == 1) {
-		window_size_ns = 40*_us;
-	 	cpu_gpu_threshold = 4;
-		max_batch_size = 8;
+		pr_warn("<LAKE trace> use model size = 1\n");
+		window_size_ns = 5*_us;
+	 	cpu_gpu_threshold = 1;
+		max_batch_size = 128;
 		no_reject = true;
 	} else if (model_size == 2) {
 	 	cpu_gpu_threshold = 4;
@@ -254,10 +275,6 @@ static void gpu_detach(void) {
 	for (i=0;i<128;i++)
 		if (window_size_hist[i] != 0)
 			pr_warn("%d:\t%u\n", i, window_size_hist[i]);
-
-	pr_warn("Total trace num: %u\n", n_traces);
-	pr_warn("GPU was used %u times\n", n_used_gpu);
-	pr_warn("Batch skipped %u times\n", n_skipped);
 	// for (i=0;i<NUMBER_DEVICES;i++) {
 	// 	pr_warn("IOs on device %d: %u\n", i, ios_on_device[i]);
 	// }
@@ -269,7 +286,7 @@ static void gpu_copy_weight(int idx) {
 	pr_warn("<LAKE trace> Copying weights of device idx high %d\n", idx);
 
 	// copy weights for high-granularity inference.
-	copy_weights(wts_low, &gpu_weights[idx][0], ONE_IO_LEN);
+	copy_weights(wts_low, &gpu_weights[idx][0], LEN_INPUT);
 	pr_warn("<LAKE trace> Copying weights of device idx low %d\n", idx);
 	// copy weights for granularity = 1
 	copy_weights(wts_high, &gpu_weights[idx][1], LEN_INPUT);	
@@ -377,6 +394,9 @@ static int __init hook_init(void)
 
 static void __exit hook_fini(void)
 {
+	pr_warn("Total trace num: %u\n", n_traces);
+	pr_warn("GPU was used %u times\n", n_used_gpu);
+	pr_warn("Batch skipped %u times\n", n_skipped);
 	const char *devs;
 	int i, err;
 

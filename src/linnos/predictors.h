@@ -20,9 +20,6 @@
 #ifndef __LINNOS_PREDICTORS_H
 #define __LINNOS_PREDICTORS_H
 
-// For high-granularity_inference, with gran = 4
-#define FEAT_31
-// #define LEN_INPUT 31
 #define FEAT_40
 
 #define GRANULARITY 2

@@ -297,7 +297,9 @@ void multi_copy_inputs_to_gpu(u64 n_inputs, int dev, int batch_id) {
     // pr_warn("<LAKE trace> vec_nums: %lu, size: sizeof(long) * LEN_INPUT * n_inputs = %lu, multi_inputs_to_gpu[dev][batch_id][39] = %li. \n", n_inputs, sizeof(long) * LEN_INPUT * n_inputs, multi_inputs_to_gpu[dev][batch_id][39]);
     int res = cuMemcpyHtoDAsync(multi_d_input_vec_i[dev][batch_id], multi_inputs_to_gpu[dev][batch_id], sizeof(long) * LEN_INPUT * n_inputs, cu_streams[dev][batch_id]);
     if (res != 0) {
-        pr_warn("Copy inputs to GPU failed. Return %d \n", res);
+        pr_warn("multi_d_input_vec_i[dev][batch_id] = %lu, multi_inputs_to_gpu[dev][batch_id] = %lu", multi_d_input_vec_i[dev][batch_id], multi_inputs_to_gpu[dev][batch_id]);
+        pr_warn("LEN_INPUT = %d, n_inputs = %li", LEN_INPUT, n_inputs);
+        pr_warn("Copy inputs to GPU failed. Size = %li, Return %d \n", sizeof(long) * LEN_INPUT * n_inputs, res);
     }
 }
 
