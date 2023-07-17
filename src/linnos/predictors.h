@@ -22,10 +22,10 @@
 
 #define FEAT_40
 
-#define GRANULARITY 2
+#define GRANULARITY 4
 #define HIST_SIZE 4
 
-#define LEN_INPUT 34 //four bits are used to represent hist_latency & 3 bits are used to represent each IO size.
+#define LEN_INPUT 40 //four bits are used to represent hist_latency & 3 bits are used to represent each IO size.
 #define ONE_IO_LEN 31
 
 #define LEN_LAYER_0 256

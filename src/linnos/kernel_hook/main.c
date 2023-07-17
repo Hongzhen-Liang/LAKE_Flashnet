@@ -65,10 +65,10 @@ MODULE_PARM_DESC(model_size, "what model to use, 0 default, 1 +1, 2 +2");
 */
 // #include "weights_header/mix/w_Trace_sdb.h"
 #include "weights_header/mix/w_Trace_nvme0n1_1.h"
-#include "weights_header/mix/w_Trace_nvme0n1_2.h"
+#include "weights_header/mix/w_Trace_nvme0n1_4.h"
 
-// #include "weights_header/mix/w_Trace_sda_1.h"
-// #include "weights_header/mix/w_Trace_sda_2.h"
+#include "weights_header/mix/w_Trace_sda_1.h"
+#include "weights_header/mix/w_Trace_sda_4.h"
 // #include "weights_header/mix/w_Trace_nvme0n1_3.h"
 // #include "weights_header/mix/w_Trace_nvme0n1_4.h"
 // #include "weights_header/mix/w_Trace_nvme0n1_6.h"
@@ -96,12 +96,21 @@ MODULE_PARM_DESC(model_size, "what model to use, 0 default, 1 +1, 2 +2");
 
 long *weights[][2][8] = {
 	//NN
-	// {	
-	// 	// for granularity = 1
-	// 	{weight_0_T_nvme0n1_1, weight_1_T_nvme0n1_1, bias_0_nvme0n1_1, bias_1_nvme0n1_1 ,0,0,0,0},
-	// 	// for granularity = 2
-	// 	{weight_0_T_nvme0n1_2, weight_1_T_nvme0n1_2, bias_0_nvme0n1_2, bias_1_nvme0n1_2 ,0,0,0,0},
-	// },
+	// first device: nvme0n1
+	{	
+		// for granularity = 1
+		{weight_0_T_nvme0n1_1, weight_1_T_nvme0n1_1, bias_0_nvme0n1_1, bias_1_nvme0n1_1 ,0,0,0,0},
+		// for granularity = 4
+		{weight_0_T_nvme0n1_4, weight_1_T_nvme0n1_4, bias_0_nvme0n1_4, bias_1_nvme0n1_4 ,0,0,0,0},
+	},
+	// second device: sda
+	{	
+		// for granularity = 1
+		{weight_0_T_sda_1, weight_1_T_sda_1, bias_0_sda_1, bias_1_sda_1 ,0,0,0,0},
+		// for granularity = 4
+		{weight_0_T_sda_4, weight_1_T_sda_4, bias_0_sda_4, bias_1_sda_4 ,0,0,0,0},
+	},
+
 
 	// {weight_0_T_sdb, weight_1_T_sdb, bias_0_sdb, bias_1_sdb ,0,0,0,0},
 	// {weight_0_T_sda2, weight_1_T_sda2, bias_0_sda2, bias_1_sda2 ,0,0,0,0},
@@ -109,12 +118,12 @@ long *weights[][2][8] = {
 
 	// NN+1
 	// device[0] = nvme0n1
-	{	
-		// for granularity = 1
-		{weight_0_T_nvme0n1_1, weight_2_T_nvme0n1_1, bias_0_nvme0n1_1, bias_2_nvme0n1_1, weight_1_T_nvme0n1_1, bias_1_nvme0n1_1, 0,0},
-		// for granularity = 2
-		{weight_0_T_nvme0n1_2, weight_2_T_nvme0n1_2, bias_0_nvme0n1_2, bias_2_nvme0n1_2, weight_1_T_nvme0n1_2, bias_1_nvme0n1_2, 0,0},
-	},
+	// {	
+	// 	// for granularity = 1
+	// 	{weight_0_T_nvme0n1_1, weight_2_T_nvme0n1_1, bias_0_nvme0n1_1, bias_2_nvme0n1_1, weight_1_T_nvme0n1_1, bias_1_nvme0n1_1, 0,0},
+	// 	// for granularity = 2
+	// 	{weight_0_T_nvme0n1_2, weight_2_T_nvme0n1_2, bias_0_nvme0n1_2, bias_2_nvme0n1_2, weight_1_T_nvme0n1_2, bias_1_nvme0n1_2, 0,0},
+	// },
 	// // device[1] = sda
 	// {	
 	// 	// for granularity = 1
@@ -140,7 +149,7 @@ static const char *devices[] = {
 	// "/dev/sda",
 	// "/dev/sdb",
 	"/dev/nvme0n1",
-	// "/dev/sda",
+	"/dev/sda",
 	// "/dev/sda2",
 	// "/dev/nvme2n1",
     //"/dev/vdb",

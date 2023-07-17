@@ -22,9 +22,7 @@
 #include <chrono>
 #include "test_weights.h"
 #define GRANULARITY 2
-#define HIST_SIZE 4
 
-// #define LEN_INPUT (HIST_SIZE+GRANULARITY)*3+HIST_SIZE*4  //four bits are used to represent hist_latency & 3 bits are used to represent each IO size.
 #define LEN_INPUT 34
 #define LEN_LAYER_0 256
 #define LEN_LAYER_0_HALF 128

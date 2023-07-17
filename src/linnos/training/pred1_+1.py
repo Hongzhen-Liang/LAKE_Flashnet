@@ -18,7 +18,7 @@ import sys
 
 LEN_HIS_QUEUE = 4
 
-train_input_path = sys.argv[1]
+train_input_path = sys.argv[1] + "_gran_" + sys.argv[3] + ".csv"
 percentile_threshold = float(sys.argv[2])
 granularity = int(sys.argv[3])
 
