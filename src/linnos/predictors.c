@@ -341,7 +341,10 @@ enter_again:
 		}
 	}
 
-	my_arrival = ktime_get_ns();
+	// change here to make every IO request arrive at the same time.
+	// my_arrival = ktime_get_ns();
+	my_arrival = 0;
+
 	dif = my_arrival - last_arrival[this_dev];
 	ia_cur[this_dev] = (ia_cur[this_dev]+1)% ia_avg_sz ;
 	ia_avgs[this_dev][ia_cur[this_dev]] = dif;
@@ -372,6 +375,7 @@ enter_again:
 	is_last = dif >= window_size_ns;
 	is_last = is_last && my_id; //cant be first
 	if (is_last || my_id >= max_batch_size) {
+		// pr_warn("<LAKE trace> Be the last one, my_id is %d, max_batch_size = %d. my_arrival = %d, first_arrival[this_dev][my_batch] = %d\n", my_id, max_batch_size, my_arrival, first_arrival[this_dev][my_batch]);
 		//pr_warn("i am last of batch %d  time dif? %d  [%lld]!\n", my_batch, is_last, dif);
 		//if so, increase current batch
 		current_batch[this_dev] = (current_batch[this_dev]+1) % MAX_DEV_BATCHES;
@@ -494,10 +498,10 @@ reset_this_batch:
 		
 		return no_reject ? false : my_prediction;
 	}
-	// for the request which is not the last one
-	// maybe this batch will never have a last, so we have to handle it. first may becomes last
+
+	// for the request which is not the last one. Maybe this batch will never have a last, so we have to handle it. first may becomes last
 	if (my_id == 0) {
-		err = wait_for_completion_timeout(&batch_completed[this_dev][my_batch], usecs_to_jiffies((window_size_ns)/1000));
+		err = wait_for_completion_timeout(&batch_completed[this_dev][my_batch], usecs_to_jiffies((window_size_ns*100)/1000));
 		//if this was a timeout, do what the last would to
 		if(err == 0) {
 			//pr_warn(" id0: timed out\n");
@@ -533,9 +537,6 @@ reset_this_batch:
 	use_cpu = use_cpu_instead[this_dev][my_batch][my_id];
 	if (!use_cpu) {
 		my_prediction = gpu_get_prediction(this_dev, my_batch, my_id / GRANULARITY);
-		// if (waiting[this_dev][my_batch] >= cpu_gpu_threshold) {
-		// 	pr_warn("<LAKE_trace> (id = %d) get the prediction result by gpu.\n", my_id);
-		// }
 	}
 
 	//spin_lock_irqsave(&per_batch_lock[this_dev][my_batch], irqflags);
@@ -544,15 +545,11 @@ reset_this_batch:
 	//we are the last one to exit, inform last
 	if (n_exited[this_dev][my_batch] == waiting[this_dev][my_batch]) {
 		complete(&finalize_batch[this_dev][my_batch]);
-		//pr_warn("%d/%d/%d: Waking up first!", this_dev, my_batch, my_id);
 	}
 	//spin_unlock_irqrestore(&per_batch_lock[this_dev][my_batch], irqflags);
 
 	if (use_cpu){
 		my_prediction = cpu_prediction_model(feat_vec, n_vecs, weights);
-		// if (waiting[this_dev][my_batch] >= cpu_gpu_threshold) {
-		// 	pr_warn("<LAKE_trace> (id = %d) get the prediction result by CPU. \n", my_id);
-		// }
 	}
 			
 	return no_reject ? false : my_prediction;

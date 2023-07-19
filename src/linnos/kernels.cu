@@ -33,78 +33,20 @@
 #define LEN_LAYER_1 2
 
 __global__ void prediction_mid_layer_batch(long *weight_0_T_ent, long *bias_0_ent, long *input_vec_i, long *mid_res_i) { 
-	int j, offset;
+	int j, offset, k;
 
 	int threadId = threadIdx.x;
     int stride = blockDim.x;
 	int input_ind = blockIdx.x*LEN_INPUT;     // locate the input blockId
 	int blockId = blockIdx.x;
-	// printf("(blockId = %d) the input_vec_i[39] = %li \n", input_vec_i[39]);
-	// int all_zero_before = 1;
-	// int all_zero_after = 1;
-	// for (int k = 0; k < 31; k++) {
-	// 	if (input_vec_i[input_ind + k] != 0){
-	// 		all_zero_before = 0;
-	// 	}
-	// }
-	// for (int k = 31; k < 40; k++) {
-	// 	if (input_vec_i[input_ind + k] != 0){
-	// 		all_zero_after = 0;
-	// 	}
-	// }
-	// if (blockIdx.x == 0){
-	// 	printf("when input_ind = %d, all_zero_before = %d, all_zero_after = %d \n", input_ind, all_zero_before, all_zero_after);
-	// 	if (all_zero_after == 0){
-	// 		printf("input_vec_i[input_ind + 39] == %d \n", input_vec_i[input_ind + 39]);
-	// 	}
-	// }
 
-	// printf("(blockId = %d) the weight_0_T_ent[256*40 - 1] * input_vec_i[input_ind + 39] = %li * %li.\n", blockId, weight_0_T_ent[threadId*LEN_INPUT + 39], input_vec_i[input_ind + 39]);
 	for (j = threadId, offset=threadId*LEN_INPUT; j < LEN_LAYER_0; j+=stride, offset+=LEN_INPUT*stride) {
 		int update_index = blockId*stride + j;
         mid_res_i[update_index] = 0;
 		//loop unroll
-		mid_res_i[update_index] =  mid_res_i[update_index] + input_vec_i[input_ind + 0] * weight_0_T_ent[offset+0]
-		+ input_vec_i[input_ind + 1] * weight_0_T_ent[offset+1]
-		+ input_vec_i[input_ind + 2] * weight_0_T_ent[offset+2]
-		+ input_vec_i[input_ind + 3] * weight_0_T_ent[offset+3]
-		+ input_vec_i[input_ind + 4] * weight_0_T_ent[offset+4]
-		+ input_vec_i[input_ind + 5] * weight_0_T_ent[offset+5]
-		+ input_vec_i[input_ind + 6] * weight_0_T_ent[offset+6]
-		+ input_vec_i[input_ind + 7] * weight_0_T_ent[offset+7]
-		+ input_vec_i[input_ind + 8] * weight_0_T_ent[offset+8]
-		+ input_vec_i[input_ind + 9] * weight_0_T_ent[offset+9]
-		+ input_vec_i[input_ind + 10] * weight_0_T_ent[offset+10]
-		+ input_vec_i[input_ind + 11] * weight_0_T_ent[offset+11]
-		+ input_vec_i[input_ind + 12] * weight_0_T_ent[offset+12]
-		+ input_vec_i[input_ind + 13] * weight_0_T_ent[offset+13]
-		+ input_vec_i[input_ind + 14] * weight_0_T_ent[offset+14]
-		+ input_vec_i[input_ind + 15] * weight_0_T_ent[offset+15]
-		+ input_vec_i[input_ind + 16] * weight_0_T_ent[offset+16]
-		+ input_vec_i[input_ind + 17] * weight_0_T_ent[offset+17]
-		+ input_vec_i[input_ind+ 18] * weight_0_T_ent[offset+18]
-		+ input_vec_i[input_ind + 19] * weight_0_T_ent[offset+19]
-		+ input_vec_i[input_ind + 20] * weight_0_T_ent[offset+20]
-		+ input_vec_i[input_ind + 21] * weight_0_T_ent[offset+21]
-		+ input_vec_i[input_ind + 22] * weight_0_T_ent[offset+22]
-		+ input_vec_i[input_ind + 23] * weight_0_T_ent[offset+23]
-		+ input_vec_i[input_ind + 24] * weight_0_T_ent[offset+24]
-		+ input_vec_i[input_ind + 25] * weight_0_T_ent[offset+25]
-		+ input_vec_i[input_ind + 26] * weight_0_T_ent[offset+26]
-		+ input_vec_i[input_ind + 27] * weight_0_T_ent[offset+27]
-		+ input_vec_i[input_ind + 28] * weight_0_T_ent[offset+28]
-		+ input_vec_i[input_ind + 29] * weight_0_T_ent[offset+29]
-		+ input_vec_i[input_ind + 30] * weight_0_T_ent[offset+30]
-		+ input_vec_i[input_ind + 31] * weight_0_T_ent[offset+31]
-		+ input_vec_i[input_ind + 32] * weight_0_T_ent[offset+32]
-		+ input_vec_i[input_ind + 33] * weight_0_T_ent[offset+33]
-		+ input_vec_i[input_ind + 34] * weight_0_T_ent[offset+34]
-		+ input_vec_i[input_ind + 35] * weight_0_T_ent[offset+35]
-		+ input_vec_i[input_ind + 36] * weight_0_T_ent[offset+36]
-		+ input_vec_i[input_ind + 37] * weight_0_T_ent[offset+37]
-		+ input_vec_i[input_ind + 38] * weight_0_T_ent[offset+38]
-		+ input_vec_i[input_ind + 39] * weight_0_T_ent[offset+39];
-
+		for (k = 0; k < LEN_INPUT; k++) {
+			mid_res_i[update_index] +=  input_vec_i[input_ind + k] * weight_0_T_ent[offset+k];
+		}
         // apply bias
         mid_res_i[update_index] += bias_0_ent[threadId];
         // relu

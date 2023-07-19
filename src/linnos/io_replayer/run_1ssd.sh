@@ -10,7 +10,7 @@ fi
 
 # sudo ./replayer $1 1ssd 1 /dev/sda $2
 
-sudo ./replayer $1 1ssd 1 /dev/sdb1 $2
+sudo ./replayer $1 1ssd 1 /dev/nvme0n1 $2
 
 #sudo ./replayer $1 3ssds 2 /dev/nvme0n1-/dev/nvme2n1 $2 $3 $4
 #kill -SIGINT  $PID

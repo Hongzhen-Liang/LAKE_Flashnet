@@ -39,15 +39,17 @@ static int sleep_until(uint64_t next) {
         if (diff <= -2000) return 1;
         return 0; //late but not that much
     }
-    else 
+    else {
+        printf("Sleep for %d ns. \n", std::chrono::nanoseconds(diff));
         std::this_thread::sleep_for(std::chrono::nanoseconds(diff));
+    }
     return 0;
 }
 
 void baseline_execute_op(TraceOp &trace_op, Trace *trace, uint32_t device, char* buf) {
     int ret;
     int *fds = trace->get_fds();
-    //read
+    //read   f
     if(trace_op.op == 0) {
         trace->add_io_count(device);
         ret = pread(fds[device], buf, trace_op.size, trace_op.offset);

@@ -99,7 +99,8 @@ with open(sys.argv[1], "w") as fp:
             else:
                 aligned_size = get_next_multiple(int(write_sizes[i]), 512)
 
-            line = f"{total_time:.5f} 0 {int(aligned_offset)} {int(aligned_size)} {ops[i]}\n"
+            # line = f"{total_time:.5f} 0 {int(aligned_offset)} {int(aligned_size)} {ops[i]}\n"
+            line = f"0 0 {int(aligned_offset)} 4096 {ops[i]}\n"
             fp.write(line)
             
             total_time += timestamps_us[i]
