@@ -22,12 +22,10 @@
 #include <chrono>
 #include "test_weights.h"
 // For high-granularity_inference, with gran = 4
-// #define LEN_INPUT 31
-#define GRANULARITY 2
+#define GRANULARITY 64
 #define HIST_SIZE 4
 
-// #define LEN_INPUT (HIST_SIZE+GRANULARITY)*3+HIST_SIZE*4  //four bits are used to represent hist_latency & 3 bits are used to represent each IO size.
-#define LEN_INPUT 34
+#define LEN_INPUT 220
 #define LEN_LAYER_0 256
 #define LEN_LAYER_0_HALF 128
 #define LEN_LAYER_1 2

@@ -13,7 +13,7 @@ fi
 
 echo $1, $2, $3
 
-sudo ../io_replayer/replayer baseline mlData/TrainTraceOutput 1 /dev/nvme0n1 $1 
+# sudo ../io_replayer/replayer baseline mlData/TrainTraceOutput 1 /dev/nvme0n1 $1 
 
 # pip3 install numpy
 # pip3 install --upgrade pip
@@ -31,11 +31,11 @@ do
 done
 
 # For granularity == 1
-for i in 0 
-do
-   python3 pred1.py \
-   mlData/"mldrive${i}_gran_1.csv" $2 1 > mlData/"mldrive${i}.txt.gran_1_results".txt
-done
+# for i in 0 
+# do
+#    python3 pred1.py \
+#    mlData/"mldrive${i}_gran_1.csv" $2 1 > mlData/"mldrive${i}.txt.gran_1_results".txt
+# done
 
 # For specified granularity
 if [ $3 -gt 1 ]

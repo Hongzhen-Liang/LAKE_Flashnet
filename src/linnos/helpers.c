@@ -85,7 +85,6 @@ void copy_weights(long **weights, struct GPU_weights *state, int input_dim) {
 
 
     //initialize variables
-    // For high-granularity_inference, with gran = 4
     pr_warn("<LAKE trace> Copy weights to share memory. \n");
 	kbuf_weight_0_T_ent = (long*) kava_alloc(256*input_dim*sizeof(long));
     memcpy(kbuf_weight_0_T_ent, weights[0], 256*input_dim*sizeof(long));
@@ -97,7 +96,6 @@ void copy_weights(long **weights, struct GPU_weights *state, int input_dim) {
     kbuf_bias_1_ent = (long*) kava_alloc(2*sizeof(long));
     memcpy(kbuf_bias_1_ent, weights[3], 2*sizeof(long));
 
-    // For high-granularity_inference, with gran = 4
     pr_warn("<LAKE trace> Copy weights to GPU memory. \n");
     check_error(cuMemcpyHtoD((CUdeviceptr )state->weights[0], kbuf_weight_0_T_ent, sizeof(long) * 256*input_dim), "cuMemcpyHtoD", __LINE__);
 	check_error(cuMemcpyHtoD((CUdeviceptr )state->weights[1], kbuf_weight_1_T_ent, sizeof(long) * 256*2), "cuMemcpyHtoD", __LINE__);

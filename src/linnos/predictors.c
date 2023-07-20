@@ -44,6 +44,8 @@ u32 n_skipped = 0;
 //batch test variables
 u32* window_size_hist; //allocated in main.c of kernel_hook, 128 elements
 u32 n_used_gpu = 0;
+s64 latency_sum = 0;
+u32 high_gran_execute_times = 0;
 u32 n_traces = 0;
 u32 ios_on_device[NUMBER_DEVICES];
 
@@ -58,7 +60,7 @@ struct completion finalize_batch[NUMBER_DEVICES][MAX_DEV_BATCHES];
 u16 n_exited[NUMBER_DEVICES][MAX_DEV_BATCHES];
 u16 waiting[NUMBER_DEVICES][MAX_DEV_BATCHES];
 u64 window_start_ns[NUMBER_DEVICES][MAX_DEV_BATCHES];
-bool use_cpu_instead[NUMBER_DEVICES][MAX_DEV_BATCHES][128];    // hard code here: modify later.
+int compute_device[NUMBER_DEVICES][MAX_DEV_BATCHES][256];    // hard code here: modify later.
 //0=idle, 1=id0 waiting, 2=running
 
 bool batch_closed[NUMBER_DEVICES][MAX_DEV_BATCHES];
@@ -227,37 +229,44 @@ int re_arrange_features(int n_vecs, int dev_index, int batch_index) {
 			[hist_size_1, hist_size_2, hist_size_3, hist_size_4, IO_size_i, hist_latency_1, hist_latency_2, hist_latency_3, hist_latency_4]
 	*/
 	int group_id = 0;
+	int full_group_num = n_vecs / GRANULARITY;
 	// 1. for the vectors that can form full groups
-	for (int i = 0; i < (n_vecs / GRANULARITY) * GRANULARITY; i ++){
-		if ((i + 1) % GRANULARITY == 0) {     // we use the history size and latency of the last IO request in a same granularity group.
-			// 1. append the history IO size.
-			for (int j = 0; j < HIST_SIZE * 3; j++) {    
-				multi_inputs_to_gpu[dev_index][batch_index][group_id*LEN_INPUT+j] = multi_inputs_to_gpu_gran_1[dev_index][batch_index][i*ONE_IO_LEN+j];
+	if (full_group_num > 0) {
+		for (int i = 0; i < (n_vecs / GRANULARITY) * GRANULARITY; i ++){
+			if ((i + 1) % GRANULARITY == 0) {     // we use the history size and latency of the last IO request in a same granularity group.
+				// 1. append the history IO size.
+				for (int j = 0; j < HIST_SIZE * 3; j++) {    
+					multi_inputs_to_gpu[dev_index][batch_index][group_id*LEN_INPUT+j] = multi_inputs_to_gpu_gran_1[dev_index][batch_index][i*ONE_IO_LEN+j];
+				}
+				// 2. append the current IO size.
+				for (int j = 0; j < 3; j++){
+					multi_inputs_to_gpu[dev_index][batch_index][group_id*LEN_INPUT+HIST_SIZE*3+(GRANULARITY-1)*3+j] = multi_inputs_to_gpu_gran_1[dev_index][batch_index][i*ONE_IO_LEN+HIST_SIZE*3+j];
+				}
+				// 3. append the history latency.
+				for (int j = 0; j < HIST_SIZE * 4; j++){    
+					multi_inputs_to_gpu[dev_index][batch_index][group_id*LEN_INPUT+HIST_SIZE*3+GRANULARITY*3+j] = multi_inputs_to_gpu_gran_1[dev_index][batch_index][i*ONE_IO_LEN+HIST_SIZE*3+3+j];
+				}
+				group_id += 1;
 			}
-			// 2. append the current IO size.
-			for (int j = 0; j < 3; j++){
-				multi_inputs_to_gpu[dev_index][batch_index][group_id*LEN_INPUT+HIST_SIZE*3+(GRANULARITY-1)*3+j] = multi_inputs_to_gpu_gran_1[dev_index][batch_index][i*ONE_IO_LEN+HIST_SIZE*3+j];
+			else{
+				// append the current IO size.
+				for (int j = 0; j < 3; j++){
+					multi_inputs_to_gpu[dev_index][batch_index][group_id*LEN_INPUT+HIST_SIZE*3+i*3+j] = multi_inputs_to_gpu_gran_1[dev_index][batch_index][i*ONE_IO_LEN+HIST_SIZE*3+j];
+				}
 			}
-			// 3. append the history latency.
-			for (int j = 0; j < HIST_SIZE * 4; j++){    
-				multi_inputs_to_gpu[dev_index][batch_index][group_id*LEN_INPUT+HIST_SIZE*3+GRANULARITY*3+j] = multi_inputs_to_gpu_gran_1[dev_index][batch_index][i*ONE_IO_LEN+HIST_SIZE*3+3+j];
-				// if (group_id*LEN_INPUT+HIST_SIZE*3+GRANULARITY*3+j == 39) {
-				// 	pr_warn("multi_inputs_to_gpu[dev_index][batch_index][39] = %li, multi_inputs_to_gpu_gran_1[dev_index][batch_index][30] = %li \n", multi_inputs_to_gpu[dev_index][batch_index][39], multi_inputs_to_gpu_gran_1[dev_index][batch_index][30]);
-				// }
-			}
-			group_id += 1;
 		}
-		else{
-			// append the current IO size.
-			for (int j = 0; j < 3; j++){
-				multi_inputs_to_gpu[dev_index][batch_index][group_id*LEN_INPUT+HIST_SIZE*3+i*3+j] = multi_inputs_to_gpu_gran_1[dev_index][batch_index][i*ONE_IO_LEN+HIST_SIZE*3+j];
+	} else {    // 2. For the situation that cannot form at least one full group
+		for (int i = 0; i < n_vecs; i++) {
+			for (int j = 0; j < ONE_IO_LEN; j++) {
+				multi_inputs_to_gpu[dev_index][batch_index][i*LEN_INPUT+j] = multi_inputs_to_gpu_gran_1[dev_index][batch_index][i*ONE_IO_LEN+j];
+			}
+			for (int j = ONE_IO_LEN; j < LEN_INPUT; j++) {
+				multi_inputs_to_gpu[dev_index][batch_index][i*LEN_INPUT+j] = 0;
 			}
 		}
 	}
-	// pr_warn("<LAKE trace> multi_inputs_to_gpu[dev_index][batch_index][39] = %li. \n", multi_inputs_to_gpu[dev_index][batch_index][39]);
-	return group_id;	
+	return full_group_num;	
 }
-
 
 void do_gpu_inference(int vec_nums, long **weights_high, int dev, int batch_id) {
 	/*
@@ -293,16 +302,20 @@ bool gpu_batch_entry(char *feat_vec, int n_vecs, long **weights) {
 	// pr_warn("<LAKE trace> [gpu_batch_entry()] Prepare to do gpu inference. \n");
 	u16 my_id;
 	u16 my_batch;
-	bool my_prediction, use_cpu, skip;
+	bool my_prediction, skip;
+	int compute_mode;
 	s64 my_arrival;
 	u32 i, this_dev=99;
 	unsigned long irqflags, err;
 	s64 dif;
 	bool is_last = false;
 	bool inf_fast = false;
+	int full_group_num;
 	s64 ia_avg = 0;
+	s64 timer_start, timer_end;
 
 	int retry_num = 0;
+	int wait_time = 0;
 
 	for(i = 0; i < NUMBER_DEVICES ; i++) {
 		if(first_weight_ptr_to_dev[i] == weights[0]) {
@@ -329,14 +342,14 @@ enter_again:
 		current_batch[this_dev] = (current_batch[this_dev]+1) % MAX_DEV_BATCHES;
 		//pr_warn("batch is closed, increasing by one to %d\n", current_batch[this_dev]);
 		spin_unlock_irqrestore(&batch_entry[this_dev], irqflags);
-		udelay(2); //we can afford 2 for a reschedule
+		udelay(5); //we can afford 2 for a reschedule
 
 		// tmp here to avoid the deadloop.
 		retry_num += 1;
-		if (retry_num < 20) {
+		if (retry_num < 100000) {
 			goto enter_again;
 		} else {
-			pr_warn("<LAKE trace> loop more than 20 times, give up looping. \n");
+			pr_warn("<LAKE trace> loop more than 100000 times, give up looping. \n");
 			retry_num = 0;
 		}
 	}
@@ -375,13 +388,14 @@ enter_again:
 	is_last = dif >= window_size_ns;
 	is_last = is_last && my_id; //cant be first
 	if (is_last || my_id >= max_batch_size) {
-		// pr_warn("<LAKE trace> Be the last one, my_id is %d, max_batch_size = %d. my_arrival = %d, first_arrival[this_dev][my_batch] = %d\n", my_id, max_batch_size, my_arrival, first_arrival[this_dev][my_batch]);
+		pr_warn("<LAKE trace> Be the last one, my_id is %d, max_batch_size = %d. my_arrival = %d, first_arrival[this_dev][my_batch] = %d\n", my_id, max_batch_size, my_arrival, first_arrival[this_dev][my_batch]);
 		//pr_warn("i am last of batch %d  time dif? %d  [%lld]!\n", my_batch, is_last, dif);
 		//if so, increase current batch
 		current_batch[this_dev] = (current_batch[this_dev]+1) % MAX_DEV_BATCHES;
 		//we are last, mark batch as full
 		is_last = true;
 		batch_closed[this_dev][my_batch] = true;
+		pr_warn("<LAKE trace> Close the batch\n");
 	}
 	//we can but not we are not last
 	else {
@@ -393,7 +407,7 @@ enter_again:
 		//pr_warn("id 0 reiniting batch %d\n", my_batch);
 		reinit_completion(&finalize_batch[this_dev][my_batch]);
 		reinit_completion(&batch_completed[this_dev][my_batch]);
-		use_cpu = true;
+		compute_mode = USE_CPU;
 		n_exited[this_dev][my_batch] = 0;
 		first_arrival[this_dev][my_batch] = ktime_get_ns();
 	}
@@ -408,103 +422,119 @@ enter_again:
 	// last close everything: the last request will do all the inference work of this batch.
 	if (is_last) {
 last_req_close:
-		//record in histogram
 		window_size_hist[waiting[this_dev][my_batch]] += 1;
-		//pr_warn(">> closing batch %d size %d\n", my_batch, waiting[this_dev][my_batch]);
-		//lonely request :(
+		// 1. lonely request :(
 		if(waiting[this_dev][my_batch] <= 1) {
-			use_cpu = true;
+			compute_mode = USE_CPU;
 			goto reset_this_batch;
 		}
-		//not big enough for gpu
+		// 2. not big enough for gpu
 		else if(waiting[this_dev][my_batch] < cpu_gpu_threshold) {
 			for (int id = 0; id < waiting[this_dev][my_batch]; id++){
-				use_cpu_instead[this_dev][my_batch][id] = true;
+				compute_device[this_dev][my_batch][id] = USE_CPU;
 			}
-			use_cpu = true;
+			compute_mode = USE_CPU;
 		}
-		//use the gpu
+		// 3. use the gpu
 		else {
-			// Multiple IO request to be handled together.
-			// if (waiting[this_dev][my_batch] > GRANULARITY) {
-			// 	pr_warn("<LAKE trace> Use GPU to calcualate %d vectors!\n", waiting[this_dev][my_batch]);
-			// }
-			// pr_warn("<LAKE trace> Use GPU to calcualate\n");
 			n_used_gpu++;
-			pr_warn("[n_traces = %d, n_used_gpu = %d], num_vecs = %d \n", n_traces, n_used_gpu, waiting[this_dev][my_batch]);
-			//my_prediction = false; //XXX
 			// re-arrange the input features to be align with high-granularity infenrece.
-			int full_group_num = re_arrange_features(waiting[this_dev][my_batch], this_dev, my_batch);
-			for (int id = 0; id < waiting[this_dev][my_batch]; id++){
-				if (id < full_group_num * GRANULARITY) {
-					use_cpu_instead[this_dev][my_batch][id] = false;
+			pr_warn("[n_traces = %d, n_used_gpu = %d], num_vecs = %d  ==> %d groups \n", n_traces, n_used_gpu, waiting[this_dev][my_batch], waiting[this_dev][my_batch] / GRANULARITY);
+			timer_start = ktime_get_ns(); // timer_start
+			full_group_num = re_arrange_features(waiting[this_dev][my_batch], this_dev, my_batch);
+			if (full_group_num > 0) {
+				for (int id = 0; id < waiting[this_dev][my_batch]; id++){
+					if (id < full_group_num * GRANULARITY) {
+						compute_device[this_dev][my_batch][id] = USE_GPU_HIGH_GRAN;
+					} else {
+						compute_device[this_dev][my_batch][id] = USE_CPU;
+					}
+				}
+				if (my_id < full_group_num * GRANULARITY) {
+					compute_mode = USE_GPU_HIGH_GRAN;
 				} else {
-					use_cpu_instead[this_dev][my_batch][id] = true;
+					compute_mode = USE_CPU;
+				}
+				if (model_size == 0) {
+					do_gpu_inference(full_group_num, gpu_weights[this_dev][1].weights, this_dev, my_batch); 
+				} 
+				else if (model_size == 1) {
+					do_gpu_inference_plus_one(full_group_num, gpu_weights[this_dev][1].weights, this_dev, my_batch); 
+				}
+				else {
+					do_gpu_inference_plus_two(full_group_num, gpu_weights[this_dev][1].weights, this_dev, my_batch); 
+				}
+			} else {
+				for (int id = 0; id < waiting[this_dev][my_batch]; id++){
+					compute_device[this_dev][my_batch][id] = USE_GPU_GRAN1;
+				}
+				compute_mode = USE_GPU_GRAN1;
+				if (model_size == 0) {
+					do_gpu_inference(waiting[this_dev][my_batch], gpu_weights[this_dev][0].weights, this_dev, my_batch); 
+				} 
+				else if (model_size == 1) {
+					do_gpu_inference_plus_one(waiting[this_dev][my_batch], gpu_weights[this_dev][0].weights, this_dev, my_batch); 
+				}
+				else {
+					do_gpu_inference_plus_two(waiting[this_dev][my_batch], gpu_weights[this_dev][0].weights, this_dev, my_batch); 
 				}
 			}
-			if (my_id < full_group_num * GRANULARITY) {
-				use_cpu= false;
-			} else {
-				use_cpu = true;
-			}
-			// pr_warn("<LAKE trace> %d vectors are re-arranged, with full-group = %d. \n", waiting[this_dev][my_batch], full_group_num);
-			// pr_warn("<LAKE trace> The remaining %d vectors, which cannot form a full-gran group, will be computed by CPU. \n", waiting[this_dev][my_batch] - full_group_num * GRANULARITY);
+			timer_end = ktime_get_ns(); // timer end
+			pr_warn("[LAKE trace] Inference Latency = %li ns\n", timer_end - timer_start);
+			latency_sum += (timer_end - timer_start);
+			high_gran_execute_times += 1;
+			pr_warn("[LAKE trace] GPU High Granularity inference has executed for %d times, sum of latency = %li ns, average latency = %li ns \n", high_gran_execute_times, latency_sum, latency_sum / high_gran_execute_times);
 
-			// waiting[this_dev][my_batch] means number of vectors to be predicted in a once.
-			if (model_size == 0) {
-				do_gpu_inference(full_group_num, gpu_weights[this_dev][1].weights, this_dev, my_batch); 
-			} 
-			else if (model_size == 1) {
-				do_gpu_inference_plus_one(full_group_num, gpu_weights[this_dev][1].weights, this_dev, my_batch); 
-			}
-			else {
-				do_gpu_inference_plus_two(full_group_num, gpu_weights[this_dev][1].weights, this_dev, my_batch); 
-			}
-
-			// judge whether the result is calculated using GPU.
-			if (!use_cpu) {
+			if (compute_mode == USE_GPU_HIGH_GRAN) {
 				my_prediction = gpu_get_prediction(this_dev, my_batch, my_id / GRANULARITY);
-				// pr_warn("<LAKE_trace> (id = %d) get the prediction result by gpu.\n", my_id);
-			} 
+			} else if (compute_mode == USE_GPU_GRAN1) {
+				my_prediction = gpu_get_prediction(this_dev, my_batch, my_id);
+			}
 		}
 
 		//let everyone go now
+		spin_lock_irqsave(&per_batch_lock[this_dev][my_batch], irqflags);
 		n_exited[this_dev][my_batch] += 1;
-		//pr_warn(" last %d: waking up all\n", my_batch);
 		complete_all(&batch_completed[this_dev][my_batch]);
+		// pr_warn("The last one complete the batch. \n");
+		spin_unlock_irqrestore(&per_batch_lock[this_dev][my_batch], irqflags);
 
 		//wait for everyone to quit
 		//pr_warn(" last %d: waiting for everyone to quit\n", my_batch);
 		//wait_for_completion(&finalize_batch[this_dev][my_batch]);
-		err = wait_for_completion_timeout(&batch_completed[this_dev][my_batch], usecs_to_jiffies((window_size_ns*10)/1000));
+		// err = wait_for_completion_timeout(&batch_completed[this_dev][my_batch], usecs_to_jiffies((window_size_ns*10)/1000));
+		err = wait_for_completion_timeout(&finalize_batch[this_dev][my_batch], usecs_to_jiffies((window_size_ns*10)/1000));    // should be wait_for_finalized_batch??
 		if (err == 0) {
-			//pr_warn("!!!!!!!!!!!!!!!!!!!!!!!!!!! LAST WAITED FOR TOO LONG\n");
+			pr_warn("!!!!!!!!!!!!!!!!!!!!!!!!!!! LAST WAITED FOR TOO LONG\n");
 		}
-		
-		//pr_warn(" last %d: done \n", my_batch);
 reset_this_batch:
-		if (use_cpu){
+		if (compute_mode == USE_CPU){
 			my_prediction = cpu_prediction_model(feat_vec, n_vecs, weights);
-			// if (waiting[this_dev][my_batch] >= cpu_gpu_threshold) {
-				// pr_warn("<LAKE_trace> (id = %d) get the prediction result by CPU...\n", my_id);
-			// }
 		}
-		// if (waiting[this_dev][my_batch] >= cpu_gpu_threshold) {
-		// 	pr_warn("<LAKE_trace> (id = %d) reset the batch and complete All.\n", my_id);
-		// }
 		//reset
 		waiting[this_dev][my_batch] = 0;
 		batch_closed[this_dev][my_batch] = false;
+		// pr_warn("<LAKE trace> Open the batch\n");
+		pr_warn("==========================================================================================\n");
 		
 		return no_reject ? false : my_prediction;
 	}
 
 	// for the request which is not the last one. Maybe this batch will never have a last, so we have to handle it. first may becomes last
 	if (my_id == 0) {
-		err = wait_for_completion_timeout(&batch_completed[this_dev][my_batch], usecs_to_jiffies((window_size_ns*100)/1000));
+		wait_time = 0;
+		while (wait_time < 1000) {
+			wait_time += 1;
+			err = wait_for_completion_timeout(&batch_completed[this_dev][my_batch], usecs_to_jiffies((window_size_ns*5)/1000));
+			if (err != 0){
+				break;
+			}
+			udelay(10);
+		}
+		// err = wait_for_completion_timeout(&batch_completed[this_dev][my_batch], usecs_to_jiffies((window_size_ns*10000)/1000));
 		//if this was a timeout, do what the last would to
-		if(err == 0) {
-			//pr_warn(" id0: timed out\n");
+		if(err == 0 || wait_time >= 1000) {
+			pr_warn(" id0: timed out. We don't want this!!\n");
 			//race condition: there is a chance id 0 woke up just after someone got in
 			//and who got in could be last or not
 			// if last, we have to wait
@@ -520,37 +550,50 @@ reset_this_batch:
 			else { 
 				//pr_warn("!!!!!!!!!!!!!!!! id0 : becoming last \n");
 				batch_closed[this_dev][my_batch] = true;
+				// pr_warn("<LAKE trace> [my_id = 0] Open the batch\n");
 				spin_unlock_irqrestore(&per_batch_lock[this_dev][my_batch], irqflags);
 				goto last_req_close;
 			} 
+		} else {
+			pr_warn("batch completed on time.! \n");
 		}
 	}
 
 	//wait until the last wake us up
 	//wait_for_completion(&batch_completed[this_dev][my_batch]);
-	err = wait_for_completion_timeout(&batch_completed[this_dev][my_batch], usecs_to_jiffies((window_size_ns*5)/1000));
-	if (err == 0) {
+	wait_time = 0;
+	while (wait_time < 10000) {
+		wait_time += 1;
+		err = wait_for_completion_timeout(&batch_completed[this_dev][my_batch], usecs_to_jiffies((window_size_ns*5)/1000));
+		if (err != 0){
+			break;
+		}
+		udelay(10);
+	}
+	// err = wait_for_completion_timeout(&batch_completed[this_dev][my_batch], usecs_to_jiffies((window_size_ns*100000)/1000));
+	if (err == 0 || wait_time >= 10000) {
 		//fall through
-		//pr_warn("!!!!!!!!!!!!!!!!!!!!!!!! THIS SHOULDNT HAVE HAPPENED  !! %d id %d\n", my_batch, my_id);
+		pr_warn("!!!!!!!!!!!!!!!!!!!!!!!! THIS SHOULDNT HAVE HAPPENED  !! %d id %d\n", my_batch, my_id);
+	} else {
+		// pr_warn("Successfully wait for batch to complete!!! \n");
 	}
 
-	use_cpu = use_cpu_instead[this_dev][my_batch][my_id];
-	if (!use_cpu) {
+	compute_mode = compute_device[this_dev][my_batch][my_id];
+	if (compute_mode == USE_GPU_HIGH_GRAN) {
 		my_prediction = gpu_get_prediction(this_dev, my_batch, my_id / GRANULARITY);
+	} else if (compute_mode == USE_GPU_GRAN1) {
+		my_prediction = gpu_get_prediction(this_dev, my_batch, my_id);
+	} else if (compute_mode == USE_CPU) {
+		my_prediction = cpu_prediction_model(feat_vec, n_vecs, weights);
 	}
 
-	//spin_lock_irqsave(&per_batch_lock[this_dev][my_batch], irqflags);
+	spin_lock_irqsave(&per_batch_lock[this_dev][my_batch], irqflags);
 	n_exited[this_dev][my_batch] += 1;
-	//pr_warn("%d/%d/%d:  %d/%d left\n", this_dev, my_batch, my_id, n_exited[this_dev][my_batch], this_batch_size[this_dev][my_batch]);
 	//we are the last one to exit, inform last
 	if (n_exited[this_dev][my_batch] == waiting[this_dev][my_batch]) {
 		complete(&finalize_batch[this_dev][my_batch]);
 	}
-	//spin_unlock_irqrestore(&per_batch_lock[this_dev][my_batch], irqflags);
-
-	if (use_cpu){
-		my_prediction = cpu_prediction_model(feat_vec, n_vecs, weights);
-	}
+	spin_unlock_irqrestore(&per_batch_lock[this_dev][my_batch], irqflags);
 			
 	return no_reject ? false : my_prediction;
 }

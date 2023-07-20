@@ -20,15 +20,11 @@
 #ifndef __LINNOS_PREDICTORS_H
 #define __LINNOS_PREDICTORS_H
 
-// For high-granularity_inference, with gran = 4
-#define FEAT_31
-// #define LEN_INPUT 31
-#define FEAT_40
 
-#define GRANULARITY 2
-#define HIST_SIZE 4
+#define GRANULARITY 32
+#define HIST_SIZE 64
 
-#define LEN_INPUT 34 //four bits are used to represent hist_latency & 3 bits are used to represent each IO size.
+#define LEN_INPUT 220 //four bits are used to represent hist_latency & 3 bits are used to represent each IO size.
 #define ONE_IO_LEN 31
 
 #define LEN_LAYER_0 256
@@ -36,6 +32,10 @@
 #define LEN_LAYER_M_2 256
 #define LEN_LAYER_0_HALF 128
 #define LEN_LAYER_1 2
+
+#define USE_CPU 0
+#define USE_GPU_GRAN1 1
+#define USE_GPU_HIGH_GRAN 2
 
 #ifdef __KERNEL__
 #include <linux/types.h>
@@ -54,6 +54,8 @@ extern u32* window_size_hist;
 extern u32 n_used_gpu;
 extern u32 n_traces;
 extern u32 n_skipped;
+extern s64 latency_sum;
+extern u32 high_gran_execute_times;
 extern u32 ios_on_device[NUMBER_DEVICES];
 bool batch_test(char *feat_vec, int n_vecs, long **weights);
 
