@@ -98,6 +98,7 @@ long *weights[][2][8] = {
 		{weight_0_T_nvme0n1_1, weight_1_T_nvme0n1_1, bias_0_nvme0n1_1, bias_1_nvme0n1_1 ,0,0,0,0},
 		// {weight_0_T_nvme0n1_32, weight_1_T_nvme0n1_32, bias_0_nvme0n1_32, bias_1_nvme0n1_32 ,0,0,0,0},
 		{weight_0_T_nvme0n1_64, weight_1_T_nvme0n1_64, bias_0_nvme0n1_64, bias_1_nvme0n1_64 ,0,0,0,0},
+		// {weight_0_T_nvme0n1_128, weight_1_T_nvme0n1_128, bias_0_nvme0n1_128, bias_1_nvme0n1_128 ,0,0,0,0},
 	},
 
 
@@ -221,7 +222,7 @@ static int gpu_attach(void) {
 		ndev++;
 	pr_warn("<LAKE trace> prepare to attach GPU. \n");
 	// pr_warn("<LAKE trace> initing for %d devices\n", ndev);
-	multi_initialize_gpu(cubin_path, 512, ndev);
+	multi_initialize_gpu(cubin_path, 256, ndev);
 	window_size_hist = vmalloc(256);
 	for (i=0;i<256;i++) 
 		window_size_hist[i] = 0;
