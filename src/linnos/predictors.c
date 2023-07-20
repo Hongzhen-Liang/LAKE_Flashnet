@@ -346,10 +346,10 @@ enter_again:
 
 		// tmp here to avoid the deadloop.
 		retry_num += 1;
-		if (retry_num < 100000) {
+		if (retry_num < 10000) {
 			goto enter_again;
 		} else {
-			pr_warn("<LAKE trace> loop more than 100000 times, give up looping. \n");
+			pr_warn("<LAKE trace> loop more than 10000 times, give up looping. \n");
 			retry_num = 0;
 		}
 	}
@@ -387,7 +387,7 @@ enter_again:
 	dif = my_arrival - first_arrival[this_dev][my_batch];
 	is_last = dif >= window_size_ns;
 	is_last = is_last && my_id; //cant be first
-	if (is_last || my_id >= max_batch_size) {
+	if (is_last || my_id + 1 >= max_batch_size) {
 		pr_warn("<LAKE trace> Be the last one, my_id is %d, max_batch_size = %d. my_arrival = %d, first_arrival[this_dev][my_batch] = %d\n", my_id, max_batch_size, my_arrival, first_arrival[this_dev][my_batch]);
 		//pr_warn("i am last of batch %d  time dif? %d  [%lld]!\n", my_batch, is_last, dif);
 		//if so, increase current batch
@@ -424,7 +424,7 @@ enter_again:
 last_req_close:
 		window_size_hist[waiting[this_dev][my_batch]] += 1;
 		// 1. lonely request :(
-		if(waiting[this_dev][my_batch] <= 1) {
+		if(waiting[this_dev][my_batch] <= 0) {   // tmp change
 			compute_mode = USE_CPU;
 			goto reset_this_batch;
 		}
@@ -503,9 +503,11 @@ last_req_close:
 		//pr_warn(" last %d: waiting for everyone to quit\n", my_batch);
 		//wait_for_completion(&finalize_batch[this_dev][my_batch]);
 		// err = wait_for_completion_timeout(&batch_completed[this_dev][my_batch], usecs_to_jiffies((window_size_ns*10)/1000));
-		err = wait_for_completion_timeout(&finalize_batch[this_dev][my_batch], usecs_to_jiffies((window_size_ns*10)/1000));    // should be wait_for_finalized_batch??
-		if (err == 0) {
-			pr_warn("!!!!!!!!!!!!!!!!!!!!!!!!!!! LAST WAITED FOR TOO LONG\n");
+		if (my_id != 0) {
+			err = wait_for_completion_timeout(&finalize_batch[this_dev][my_batch], usecs_to_jiffies((window_size_ns*10)/1000));   
+			if (err == 0) {
+				pr_warn("!!!!!!!!!!!!!!!!!!!!!!!!!!! LAST WAITED FOR TOO LONG\n");
+			}
 		}
 reset_this_batch:
 		if (compute_mode == USE_CPU){
