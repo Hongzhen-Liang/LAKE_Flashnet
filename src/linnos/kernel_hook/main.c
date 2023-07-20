@@ -63,47 +63,15 @@ MODULE_PARM_DESC(model_size, "what model to use, 0 default, 1 +1, 2 +2");
   For NN+1, uncomment below //NN+1 (with 2 zeros)
   For NN+2, uncomment below //NN+2 (with no zeros)
 */
-// #include "weights_header/mix/w_Trace_sdb.h"
-#include "weights_header/mix/w_Trace_nvme0n1_1.h"
-// #include "weights_header/mix/w_Trace_nvme0n1_2.h"
-// #include "weights_header/mix/w_Trace_nvme0n1_4.h"
-// #include "weights_header/mix/w_Trace_nvme0n1_8.h"
-// #include "weights_header/mix/w_Trace_nvme0n1_16.h"
-// #include "weights_header/mix/w_Trace_nvme0n1_32.h"
-// #include "weights_header/mix/w_Trace_nvme0n1_64.h"
-// #include "weights_header/mix/w_Trace_nvme0n1_128.h"
-// #include "weights_header/mix/w_Trace_sda_1.h"
-// #include "weights_header/mix/w_Trace_sda_4.h"
-// #include "weights_header/mix/w_Trace_sda2.h"
-// #include "weights_header/mix/w_Trace_nvme2n1.h"
-//#include "weights_header/mix+1/w_Trace_nvme0n1.h"
-//#include "weights_header/mix+1/w_Trace_nvme1n1.h"
-//#include "weights_header/mix+1/w_Trace_nvme2n1.h"
-//#include "weights_header/mix+2/w_Trace_nvme0n1.h"
-//#include "weights_header/mix+2/w_Trace_nvme1n1.h"
-//#include "weights_header/mix+2/w_Trace_nvme2n1.h"
 
-//#include "weights_header/mix+2/w_Trace_nvme0n1.h"
-//#include "weights_header/mix+2/w_Trace_nvme1n1.h"
-//#include "weights_header/mix+2/w_Trace_nvme2n1.h"
-//#include "weights_header/azure+1/w_Trace_nvme0n1.h"
-//#include "weights_header/azure+1/w_Trace_nvme1n1.h"
-//#include "weights_header/azure+1/w_Trace_nvme2n1.h"
-//#include "weights_header/azure+2/w_Trace_nvme0n1.h"
-//#include "weights_header/azure+2/w_Trace_nvme1n1.h"
-//#include "weights_header/azure+2/w_Trace_nvme2n1.h"
+#include "weights_header/mix/w_Trace_nvme0n1_1.h"      // don't change here
+#include "weights_header/mix/w_Trace_nvme0n1_128.h"    // change here
 
 long *weights[][2][8] = {
 	//NN
 	{	
-		{weight_0_T_nvme0n1_1, weight_1_T_nvme0n1_1, bias_0_nvme0n1_1, bias_1_nvme0n1_1 ,0,0,0,0},
-		{weight_0_T_nvme0n1_1, weight_1_T_nvme0n1_1, bias_0_nvme0n1_1, bias_1_nvme0n1_1 ,0,0,0,0},
-		// {weight_0_T_nvme0n1_4, weight_1_T_nvme0n1_4, bias_0_nvme0n1_4, bias_1_nvme0n1_4 ,0,0,0,0},
-		// {weight_0_T_nvme0n1_8, weight_1_T_nvme0n1_8, bias_0_nvme0n1_8, bias_1_nvme0n1_8 ,0,0,0,0},
-		// {weight_0_T_nvme0n1_16, weight_1_T_nvme0n1_16, bias_0_nvme0n1_16, bias_1_nvme0n1_16 ,0,0,0,0},
-		// {weight_0_T_nvme0n1_32, weight_1_T_nvme0n1_32, bias_0_nvme0n1_32, bias_1_nvme0n1_32 ,0,0,0,0},
-		// {weight_0_T_nvme0n1_64, weight_1_T_nvme0n1_64, bias_0_nvme0n1_64, bias_1_nvme0n1_64 ,0,0,0,0},
-		// {weight_0_T_nvme0n1_128, weight_1_T_nvme0n1_128, bias_0_nvme0n1_128, bias_1_nvme0n1_128 ,0,0,0,0},
+		{weight_0_T_nvme0n1_1, weight_1_T_nvme0n1_1, bias_0_nvme0n1_1, bias_1_nvme0n1_1 ,0,0,0,0},           // don't change here
+		{weight_0_T_nvme0n1_128, weight_1_T_nvme0n1_128, bias_0_nvme0n1_128, bias_1_nvme0n1_128 ,0,0,0,0},   // change here
 	},
 
 
@@ -128,7 +96,7 @@ long *weights[][2][8] = {
 
 static const char *devices[] = {
 	// "/dev/sda",
-	"/dev/nvme0n1",
+	"/dev/nvme0n1",   // change here
 	// "/dev/sda2",
 	// "/dev/nvme2n1",
     //"/dev/vdb",
@@ -232,11 +200,10 @@ static int gpu_attach(void) {
 	for (i=0;i<256;i++) 
 		window_size_hist[i] = 0;
 	if(model_size==0) {
-	 	// cpu_gpu_threshold = 8;   // Important! Temporary comment this to see the result of using GPU.
 		cpu_gpu_threshold = 1;
-		max_batch_size = 1;
-	 	// window_size_ns = 5*_us;
-		window_size_ns = 1000*_us;   // try a greater window_size_ns to include more IO request in a batch.
+		max_batch_size = 128;            // change here
+	 	// window_size_ns = 5*_us;   
+		window_size_ns = 1000*_us;
 		no_reject = false;
 	} else if (model_size == 1) {
 		window_size_ns = 40*_us;

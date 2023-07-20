@@ -13,14 +13,14 @@ fi
 
 echo $1, $2, $3
 
-# sudo ../io_replayer/replayer baseline mlData/TrainTraceOutput 1 /dev/nvme0n1 $1 
+sudo ../io_replayer/replayer baseline mlData/TrainTraceOutput 1 /dev/nvme0n1 $1   # change here
 
-# pip3 install numpy
-# pip3 install --upgrade pip
-# pip3 install tensorflow
-# pip3 install keras
-# pip3 install pandas
-# pip3 install scikit-learn
+pip3 install numpy
+pip3 install --upgrade pip
+pip3 install tensorflow
+pip3 install keras
+pip3 install pandas
+pip3 install scikit-learn
 
 mkdir -p mlData
 for i in 0 
@@ -31,11 +31,11 @@ do
 done
 
 # For granularity == 1
-# for i in 0 
-# do
-#    python3 pred1.py \
-#    mlData/"mldrive${i}_gran_1.csv" $2 1 > mlData/"mldrive${i}.txt.gran_1_results".txt
-# done
+for i in 0 
+do
+   python3 pred1.py \
+   mlData/"mldrive${i}_gran_1.csv" $2 1 > mlData/"mldrive${i}.txt.gran_1_results".txt
+done
 
 # For specified granularity
 if [ $3 -gt 1 ]
@@ -55,10 +55,10 @@ cd ..
 mkdir -p weights_header_1ssd
 
 # For granularity == 1
-python3 mlHeaderGen.py Trace nvme0n1 mlData/drive0weights weights_header_1ssd 1
+python3 mlHeaderGen.py Trace nvme0n1 mlData/drive0weights weights_header_1ssd 1    # change here
 if [ $3 -gt 1 ]
    then
-      python3 mlHeaderGen.py Trace nvme0n1 mlData/drive0weights weights_header_1ssd $3
+      python3 mlHeaderGen.py Trace nvme0n1 mlData/drive0weights weights_header_1ssd $3    # change here
 fi
 
 cd ../kernel_hook/weights_header/mix

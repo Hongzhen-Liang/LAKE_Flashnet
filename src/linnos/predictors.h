@@ -21,10 +21,10 @@
 #define __LINNOS_PREDICTORS_H
 
 
-#define GRANULARITY 1
+#define GRANULARITY 128    // change here
 #define HIST_SIZE 4
 
-#define LEN_INPUT 31 //four bits are used to represent hist_latency & 3 bits are used to represent each IO size.
+#define LEN_INPUT 412     // change here
 #define ONE_IO_LEN 31
 
 #define LEN_LAYER_0 256

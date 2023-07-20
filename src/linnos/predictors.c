@@ -354,7 +354,6 @@ enter_again:
 		}
 	}
 
-	// change here to make every IO request arrive at the same time.
 	// my_arrival = ktime_get_ns();
 	my_arrival = 0;
 
@@ -464,6 +463,12 @@ last_req_close:
 				else {
 					do_gpu_inference_plus_two(full_group_num, gpu_weights[this_dev][1].weights, this_dev, my_batch); 
 				}
+				// Evaluate the Inference time of High-Gran-Inference (using GPU).
+				timer_end = ktime_get_ns(); // timer end
+				pr_warn("[LAKE trace] Inference Latency = %li ns\n", timer_end - timer_start);
+				latency_sum += (timer_end - timer_start);
+				high_gran_execute_times += 1;
+				pr_warn("[LAKE trace] GPU High Granularity inference has executed for %d times, sum of latency = %li ns, average latency = %li ns \n", high_gran_execute_times, latency_sum, latency_sum / high_gran_execute_times);
 			} else {
 				for (int id = 0; id < waiting[this_dev][my_batch]; id++){
 					compute_device[this_dev][my_batch][id] = USE_GPU_GRAN1;
@@ -479,11 +484,6 @@ last_req_close:
 					do_gpu_inference_plus_two(waiting[this_dev][my_batch], gpu_weights[this_dev][0].weights, this_dev, my_batch); 
 				}
 			}
-			timer_end = ktime_get_ns(); // timer end
-			pr_warn("[LAKE trace] Inference Latency = %li ns\n", timer_end - timer_start);
-			latency_sum += (timer_end - timer_start);
-			high_gran_execute_times += 1;
-			pr_warn("[LAKE trace] GPU High Granularity inference has executed for %d times, sum of latency = %li ns, average latency = %li ns \n", high_gran_execute_times, latency_sum, latency_sum / high_gran_execute_times);
 
 			if (compute_mode == USE_GPU_HIGH_GRAN) {
 				my_prediction = gpu_get_prediction(this_dev, my_batch, my_id / GRANULARITY);
@@ -536,7 +536,7 @@ reset_this_batch:
 		// err = wait_for_completion_timeout(&batch_completed[this_dev][my_batch], usecs_to_jiffies((window_size_ns*10000)/1000));
 		//if this was a timeout, do what the last would to
 		if(err == 0 || wait_time >= 1000) {
-			pr_warn(" id0: timed out. We don't want this!!\n");
+			pr_warn(" id0: timed out. \n");
 			//race condition: there is a chance id 0 woke up just after someone got in
 			//and who got in could be last or not
 			// if last, we have to wait

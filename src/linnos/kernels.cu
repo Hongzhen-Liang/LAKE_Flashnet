@@ -21,11 +21,11 @@
 #include <stdio.h>
 #include <chrono>
 #include "test_weights.h"
-// For high-granularity_inference, with gran = 4
-#define GRANULARITY 1
+
+#define GRANULARITY 128   // change here
 #define HIST_SIZE 4
 
-#define LEN_INPUT 31
+#define LEN_INPUT 412    // change here
 #define LEN_LAYER_0 256
 #define LEN_LAYER_0_HALF 128
 #define LEN_LAYER_1 2
