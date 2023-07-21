@@ -387,14 +387,14 @@ enter_again:
 	is_last = dif >= window_size_ns;
 	is_last = is_last && my_id; //cant be first
 	if (is_last || my_id + 1 >= max_batch_size) {
-		pr_warn("<LAKE trace> Be the last one, my_id is %d, max_batch_size = %d. my_arrival = %d, first_arrival[this_dev][my_batch] = %d\n", my_id, max_batch_size, my_arrival, first_arrival[this_dev][my_batch]);
+		// pr_warn("<LAKE trace> Be the last one, my_id is %d, max_batch_size = %d. my_arrival = %d, first_arrival[this_dev][my_batch] = %d\n", my_id, max_batch_size, my_arrival, first_arrival[this_dev][my_batch]);
 		//pr_warn("i am last of batch %d  time dif? %d  [%lld]!\n", my_batch, is_last, dif);
 		//if so, increase current batch
 		current_batch[this_dev] = (current_batch[this_dev]+1) % MAX_DEV_BATCHES;
 		//we are last, mark batch as full
 		is_last = true;
 		batch_closed[this_dev][my_batch] = true;
-		pr_warn("<LAKE trace> Close the batch\n");
+		// pr_warn("<LAKE trace> Close the batch\n");
 	}
 	//we can but not we are not last
 	else {
@@ -438,7 +438,7 @@ last_req_close:
 		else {
 			n_used_gpu++;
 			// re-arrange the input features to be align with high-granularity infenrece.
-			pr_warn("[n_traces = %d, n_used_gpu = %d], num_vecs = %d  ==> %d groups \n", n_traces, n_used_gpu, waiting[this_dev][my_batch], waiting[this_dev][my_batch] / GRANULARITY);
+			pr_warn("<LAKE trace> [n_traces = %d, n_used_gpu = %d], num_vecs = %d  ==> %d groups \n", n_traces, n_used_gpu, waiting[this_dev][my_batch], waiting[this_dev][my_batch] / GRANULARITY);
 			timer_start = ktime_get_ns(); // timer_start
 			full_group_num = re_arrange_features(waiting[this_dev][my_batch], this_dev, my_batch);
 			if (full_group_num > 0) {
@@ -557,7 +557,7 @@ reset_this_batch:
 				goto last_req_close;
 			} 
 		} else {
-			pr_warn("batch completed on time.! \n");
+			// pr_warn("batch completed on time.! \n");
 		}
 	}
 

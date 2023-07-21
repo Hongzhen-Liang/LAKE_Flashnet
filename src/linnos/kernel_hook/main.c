@@ -223,10 +223,12 @@ static int gpu_attach(void) {
 static void gpu_detach(void) {
 	const char *devs;
 	int i;
+	pr_warn("Prepare to clean weights of GPU. \n");
 	for(devs = devices[0], i=0 ; devs != 0 ; devs = devices[++i]) {
-		multi_gpu_cuda_cleanup_dev(&gpu_weights[i][0], i);   // clean weights of low-gran
-		multi_gpu_cuda_cleanup_dev(&gpu_weights[i][1], i);   // clean weights of high-gran
+		multi_gpu_cuda_cleanup_dev(&gpu_weights[i][0], i, 1);   // clean weights of low-gran
+		multi_gpu_cuda_cleanup_dev(&gpu_weights[i][1], i, 0);   // clean weights of high-gran
 	}
+	pr_warn("GPU weights-clean succeed! \n");
 	
 	for (i=0;i<128;i++)
 		if (window_size_hist[i] != 0)
@@ -359,13 +361,30 @@ static void __exit hook_fini(void)
 
 	sysctl_lake_linnos_debug = 0;
 	for(devs = devices[0], i=0 ; devs != 0 ; devs = devices[++i]){
+		pr_warn("Prepare to call gpu_detach_queue \n");
 		err = gpu_detach_queue(i);
-		if (err) return;
+		if (err) {
+			return;
+		} else {
+			pr_warn("gpu detach queue without error. \n");
+		}
 	}
 
-	if(is_qdepth) qdepth_detach();
-	if(is_batch_test) batch_test_detach();
-	if(is_gpu_inf) gpu_detach();
+	if(is_qdepth) {
+		pr_warn("Enter is_qdepth\n");
+		qdepth_detach();
+		pr_warn("qdepth_detach OK\n");
+	}
+	if(is_batch_test) {
+		pr_warn("Enter is_batch_test\n");
+		batch_test_detach();
+		pr_warn("is_batch_test OK\n");
+	}
+	if(is_gpu_inf) {
+		pr_warn("Enter gpu_detach()\n");
+		gpu_detach();
+		pr_warn("gpu_detach OK!\n");
+	}
 }
 
 module_init(hook_init);

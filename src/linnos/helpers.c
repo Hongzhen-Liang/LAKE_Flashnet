@@ -223,26 +223,34 @@ void copy_inputs_to_gpu(u64 n_inputs) {
  * Multi GPU, multi batch functions
 */
 
-void multi_gpu_cuda_cleanup_dev(struct GPU_weights *state, int dev) {
+void multi_gpu_cuda_cleanup_dev(struct GPU_weights *state, int dev, int low_gran) {
     int i, batch;
-    pr_warn("Cleaning up GPU %d state\n", dev);
+    if (low_gran) {
+        pr_warn("Cleaning up GPU %d state. Low gran.\n", dev);
+    } else {
+        pr_warn("Cleaning up GPU %d state. High gran.\n", dev);
+    }
+    pr_warn("Free state->weights\n");
     for(i = 0; i < 8 ; i++) {
         cuMemFree((CUdeviceptr)state->weights[i]);
     }
+    pr_warn("Free state->weights OK!\n");
 
-    for(batch = 0 ; batch < MAX_DEV_BATCHES ; batch++){
-        //pr_warn("Freeing for %d/%d\n", dev, batch);
-        cuMemFree(multi_d_input_vec_i[dev][batch]);
-        cuMemFree(multi_d_mid_res_i[dev][batch]);
-        cuMemFree(multi_d_mid_res_1_i[dev][batch]);
-        cuMemFree(multi_d_mid_res_2_i[dev][batch]);
-        cuMemFree(multi_d_final_res_i[dev][batch]);
+    if (low_gran) {
+        for(batch = 0 ; batch < MAX_DEV_BATCHES ; batch++){
+            //pr_warn("Freeing for %d/%d\n", dev, batch);
+            cuMemFree(multi_d_input_vec_i[dev][batch]);
+            cuMemFree(multi_d_mid_res_i[dev][batch]);
+            cuMemFree(multi_d_mid_res_1_i[dev][batch]);
+            cuMemFree(multi_d_mid_res_2_i[dev][batch]);
+            cuMemFree(multi_d_final_res_i[dev][batch]);
 
-        kava_free(multi_inputs_to_gpu[dev][batch]);        
-        kava_free(multi_inputs_to_gpu_gran_1[dev][batch]);        
-        kava_free(multi_gpu_outputs[dev][batch]);
+            kava_free(multi_inputs_to_gpu[dev][batch]);        
+            kava_free(multi_inputs_to_gpu_gran_1[dev][batch]);        
+            kava_free(multi_gpu_outputs[dev][batch]);
 
-        cuStreamDestroy(cu_streams[dev][batch]);
+            cuStreamDestroy(cu_streams[dev][batch]);
+        }
     }
 }
 
