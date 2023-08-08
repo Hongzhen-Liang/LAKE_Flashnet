@@ -423,7 +423,7 @@ enter_again:
 last_req_close:
 		window_size_hist[waiting[this_dev][my_batch]] += 1;
 		// 1. lonely request :(
-		if(waiting[this_dev][my_batch] <= 0) {   // tmp change
+		if(waiting[this_dev][my_batch] <= 0) {   // tmp change to avoid using cpu when granularity = 1
 			compute_mode = USE_CPU;
 			goto reset_this_batch;
 		}
@@ -438,7 +438,7 @@ last_req_close:
 		else {
 			n_used_gpu++;
 			// re-arrange the input features to be align with high-granularity infenrece.
-			pr_warn("<LAKE trace> [n_traces = %d, n_used_gpu = %d], num_vecs = %d  ==> %d groups \n", n_traces, n_used_gpu, waiting[this_dev][my_batch], waiting[this_dev][my_batch] / GRANULARITY);
+			// pr_warn("<LAKE trace> [n_traces = %d, n_used_gpu = %d], num_vecs = %d  ==> %d groups \n", n_traces, n_used_gpu, waiting[this_dev][my_batch], waiting[this_dev][my_batch] / GRANULARITY);
 			timer_start = ktime_get_ns(); // timer_start
 			full_group_num = re_arrange_features(waiting[this_dev][my_batch], this_dev, my_batch);
 			if (full_group_num > 0) {
@@ -466,9 +466,11 @@ last_req_close:
 				// Evaluate the Inference time of High-Gran-Inference (using GPU).
 				timer_end = ktime_get_ns(); // timer end
 				pr_warn("[LAKE trace] Inference Latency = %li ns\n", timer_end - timer_start);
-				latency_sum += (timer_end - timer_start);
+				if (high_gran_execute_times != 0) {    // don't account the first time.
+					latency_sum += (timer_end - timer_start);
+					pr_warn("[LAKE trace] GPU High Granularity inference has executed for %d times, sum of latency = %li ns, average latency = %li ns \n", high_gran_execute_times, latency_sum, latency_sum / high_gran_execute_times);
+				}
 				high_gran_execute_times += 1;
-				pr_warn("[LAKE trace] GPU High Granularity inference has executed for %d times, sum of latency = %li ns, average latency = %li ns \n", high_gran_execute_times, latency_sum, latency_sum / high_gran_execute_times);
 			} else {
 				for (int id = 0; id < waiting[this_dev][my_batch]; id++){
 					compute_device[this_dev][my_batch][id] = USE_GPU_GRAN1;

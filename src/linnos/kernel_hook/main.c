@@ -65,13 +65,13 @@ MODULE_PARM_DESC(model_size, "what model to use, 0 default, 1 +1, 2 +2");
 */
 
 #include "weights_header/mix/w_Trace_nvme0n1_1.h"      // don't change here
-#include "weights_header/mix/w_Trace_nvme0n1_128.h"    // change here
+#include "weights_header/mix/w_Trace_nvme0n1_1.h"    // change here
 
 long *weights[][2][8] = {
 	//NN
 	{	
 		{weight_0_T_nvme0n1_1, weight_1_T_nvme0n1_1, bias_0_nvme0n1_1, bias_1_nvme0n1_1 ,0,0,0,0},           // don't change here
-		{weight_0_T_nvme0n1_128, weight_1_T_nvme0n1_128, bias_0_nvme0n1_128, bias_1_nvme0n1_128 ,0,0,0,0},   // change here
+		{weight_0_T_nvme0n1_1, weight_1_T_nvme0n1_1, bias_0_nvme0n1_1, bias_1_nvme0n1_1 ,0,0,0,0},   // change here
 	},
 
 
@@ -201,7 +201,7 @@ static int gpu_attach(void) {
 		window_size_hist[i] = 0;
 	if(model_size==0) {
 		cpu_gpu_threshold = 1;
-		max_batch_size = 128;            // change here
+		max_batch_size = 1;            // change here
 	 	// window_size_ns = 5*_us;   
 		window_size_ns = 1000*_us;
 		no_reject = false;

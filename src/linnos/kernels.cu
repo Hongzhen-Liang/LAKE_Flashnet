@@ -22,10 +22,10 @@
 #include <chrono>
 #include "test_weights.h"
 
-#define GRANULARITY 128   // change here
+#define GRANULARITY 1   // change here
 #define HIST_SIZE 4
 
-#define LEN_INPUT 412    // change here
+#define LEN_INPUT 31    // change here
 #define LEN_LAYER_0 256
 #define LEN_LAYER_0_HALF 128
 #define LEN_LAYER_1 2
